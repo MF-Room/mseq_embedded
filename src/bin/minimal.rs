@@ -15,9 +15,8 @@ mod app {
     use rtic_monotonics::systick::prelude::*;
     use stm32f4xx_hal::{
         interrupt,
-        pac::{self, USART1},
+        pac::USART1,
         prelude::*,
-        rcc::AHB1,
         serial::{
             self, config::{DmaConfig, StopBits::STOP1}, Config, Serial
         },
