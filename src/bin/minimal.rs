@@ -8,15 +8,16 @@ use mseq_hardware as _; // global logger + panicking-behavior + memory layout
     device = stm32f4xx_hal::pac,
     // TODO: Replace the `FreeInterrupt1, ...` with free interrupt vectors if software tasks are used
     // You can usually find the names of the interrupt vectors in the some_hal::pac::interrupt enum.
-    dispatchers = [],
+    dispatchers = [TIM3],
     peripherals = true,
 )]
 mod app {
+    const BUFFER_SIZE: usize = 3;
+
     use rtic_monotonics::systick::prelude::*;
     use stm32f4xx_hal::{
         dma::{self, DmaEvent, Transfer},
-        interrupt,
-        pac::{otg_fs_device::diep::txfsts, DMA2, USART1},
+        pac::{DMA2, USART1},
         prelude::*,
         serial::{
             config::{DmaConfig, StopBits::STOP1},
@@ -27,26 +28,29 @@ mod app {
     systick_monotonic!(Mono, 100);
 
     #[shared]
-    struct Shared {}
-
-    #[local]
-    struct Local {
-        recv: stm32f4xx_hal::dma::Transfer<
-            dma::StreamX<DMA2,2> ,
+    struct Shared {
+        transfer: stm32f4xx_hal::dma::Transfer<
+            dma::Stream2<DMA2>,
             4,
             stm32f4xx_hal::serial::Rx<stm32f4xx_hal::pac::USART1>,
             stm32f4xx_hal::dma::PeripheralToMemory,
-            &'static mut [u8; 128],
+            &'static mut [u8; BUFFER_SIZE],
         >,
     }
 
-    #[init(local = [buf: [u8; 128] = [0; 128]])]
-    fn init(cx: init::Context) -> (Shared, Local) {
-        cx.device.RCC.ahb1enr().modify(|_, w| w.dma2en().enabled());
+    #[local]
+    struct Local {
+        buffer: Option<&'static mut [u8; BUFFER_SIZE]>,
+    }
 
+    #[init(local = [buf1: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE], buf2: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE]])]
+    fn init(cx: init::Context) -> (Shared, Local) {
         defmt::info!("init");
 
-        // Midi connection
+        // Timer
+        Mono::start(cx.core.SYST, 12_000_000);
+
+        // Serial connection
         let rcc = cx.device.RCC.constrain();
         let clocks = rcc.cfgr.freeze();
         let gpioa = cx.device.GPIOA.split();
@@ -61,32 +65,36 @@ mod app {
                 .wordlength_8()
                 .parity_none()
                 .stopbits(STOP1)
-                .dma(DmaConfig::Rx),
+                .dma(DmaConfig::TxRx),
             &clocks,
         )
-        .unwrap();
+        .expect("Failed to initialize serial");
 
-        let (tx, rx) = serial.split();
-
+        // Setup dma
         let mut dma = dma::StreamsTuple::new(cx.device.DMA2);
         dma.2.listen(DmaEvent::TransferComplete);
 
-        // let serial_dma = serial.use_dma_rx(dma.2);
-
-        // Timer
-        Mono::start(cx.core.SYST, 12_000_000);
-
-        // Start
-        rtic::pend(interrupt::DMA2_STREAM2);
-        let recv = Transfer::init_peripheral_to_memory(
+        // Init transfer
+        let (_, rx) = serial.split();
+        let mut transfer = Transfer::init_peripheral_to_memory(
             dma.2,
             rx,
-            cx.local.buf,
+            cx.local.buf1,
             None,
-            dma::config::DmaConfig::default().transfer_complete_interrupt(true),
+            dma::config::DmaConfig::default()
+                .transfer_complete_interrupt(true)
+                .memory_increment(true),
         );
 
-        (Shared {}, Local { recv })
+        // Start transfer
+        transfer.start(|_| {});
+
+        (
+            Shared { transfer },
+            Local {
+                buffer: Some(cx.local.buf2),
+            },
+        )
     }
 
     #[idle]
@@ -98,9 +106,29 @@ mod app {
         }
     }
 
-    #[task(binds = DMA2_STREAM2, priority = 2, local = [recv])]
+    #[task(priority = 1)]
+    async fn sleep5s(_cx: sleep5s::Context) {
+        defmt::info!("Sleep start");
+        Mono::delay(5000.millis()).await;
+        defmt::info!("Sleep stop");
+    }
+
+    #[task(binds = DMA2_STREAM2, priority = 2, shared = [transfer], local = [buffer])]
     fn midi_dma2(cx: midi_dma2::Context) {
-        defmt::info!("dma stream 2 triggered");
-        // cx.local.recv.dk
+        let mut shared = cx.shared;
+        let local = cx.local;
+        let buffer = shared.transfer.lock(|transfer| {
+            let (buffer, _) = transfer
+                .next_transfer(local.buffer.take().expect("Failed to take buffer"))
+                .expect("Failed to get dma buffer");
+            buffer
+        });
+        defmt::info!(
+            "dma buffer full: {}, {}, {}",
+            buffer[0],
+            buffer[1],
+            buffer[2],
+        );
+        *local.buffer = Some(buffer);
     }
 }
