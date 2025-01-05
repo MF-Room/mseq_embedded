@@ -18,15 +18,14 @@ mod app {
 
     use rtic_monotonics::systick::prelude::*;
     use stm32f4xx_hal::{
-        dma::{self, DmaEvent, Transfer},
-        pac::{DMA2, I2C1, TIM3, USART1},
+        pac::{I2C1, TIM3, USART1},
         prelude::*,
+        rtc::Rtc,
         serial::{
             config::{DmaConfig, StopBits::STOP1},
-            Config, Serial,
+            Config, Rx, Serial, Tx,
         },
-        timer::{self, CounterHz, DelayUs},
-        ClearFlags,
+        timer::DelayUs,
     };
 
     systick_monotonic!(Mono, 100);
@@ -51,33 +50,28 @@ mod app {
     }
 
     #[shared]
-    struct Shared {
-        transfer: stm32f4xx_hal::dma::Transfer<
-            dma::Stream2<DMA2>,
-            4,
-            stm32f4xx_hal::serial::Rx<stm32f4xx_hal::pac::USART1>,
-            stm32f4xx_hal::dma::PeripheralToMemory,
-            &'static mut [u8; BUFFER_SIZE],
-        >,
-    }
+    struct Shared {}
 
     #[local]
     struct Local {
-        buffer: Option<&'static mut [u8; BUFFER_SIZE]>,
-        timer: CounterHz<stm32f4xx_hal::pac::TIM2>,
         lcd: Lcd,
+        rx: Rx<USART1>,
+        tx: Tx<USART1>,
+        counter: u32,
+        rtc: Rtc,
     }
 
     #[init(local = [buf1: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE], buf2: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE]])]
-    fn init(cx: init::Context) -> (Shared, Local) {
+    fn init(mut cx: init::Context) -> (Shared, Local) {
         defmt::info!("init");
 
         // Timer
-        Mono::start(cx.core.SYST, 12_000_000);
+        // Mono::start(cx.core.SYST, 12_000_000);
 
         // Serial connection
+        let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
         let rcc = cx.device.RCC.constrain();
-        let clocks = rcc.cfgr.freeze();
+        let clocks = rcc.cfgr.use_hse(25.MHz()).freeze();
         let gpioa = cx.device.GPIOA.split();
         let rx_1 = gpioa.pa10.into_alternate();
         let tx_1 = gpioa.pa9.into_alternate();
@@ -90,34 +84,18 @@ mod app {
                 .wordlength_8()
                 .parity_none()
                 .stopbits(STOP1)
-                .dma(DmaConfig::TxRx),
+                .dma(DmaConfig::None),
             &clocks,
         )
         .expect("Failed to initialize serial");
+        let (mut tx, mut rx) = serial.split();
+        rx.listen();
 
-        // Setup dma
-        let mut dma = dma::StreamsTuple::new(cx.device.DMA2);
-        dma.2.listen(DmaEvent::TransferComplete);
-
-        // Init transfer
-        let (_, rx) = serial.split();
-        let mut transfer = Transfer::init_peripheral_to_memory(
-            dma.2,
-            rx,
-            cx.local.buf1,
-            None,
-            dma::config::DmaConfig::default()
-                .transfer_complete_interrupt(true)
-                .memory_increment(true),
-        );
-
-        // Start transfer
-        transfer.start(|_| {});
+        tx.write(0xfa).unwrap();
 
         // Fixed time update
-        let mut timer = cx.device.TIM2.counter_hz(&clocks);
-        timer.listen(timer::Event::Update);
-        timer.start(1.Hz()).unwrap();
+        rtc.enable_wakeup(17606.micros::<1, 1_000_000>().into());
+        rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
 
         // lcd screen
         let gpiob = cx.device.GPIOB.split();
@@ -144,14 +122,13 @@ mod app {
         }
 
         (
-            Shared { transfer },
+            Shared {},
             Local {
-                buffer: Some(cx.local.buf2),
-                timer,
-                lcd: Lcd {
-                    i2c,
-                    delay,
-                },
+                lcd: Lcd { i2c, delay },
+                rx,
+                tx,
+                counter: 0,
+                rtc,
             },
         )
     }
@@ -165,42 +142,34 @@ mod app {
         }
     }
 
-    #[task(binds = TIM2, priority = 2, local = [timer, lcd])]
+    #[task(binds = RTC_WKUP, priority = 2, local = [lcd, counter, tx, rtc])]
     fn fixed_time(cx: fixed_time::Context) {
         // Fixed time update
         // defmt::info!("tick");
-        cx.local.timer.clear_all_flags();
-        let mut lcd = cx.local.lcd.get();
+        cx.local
+            .rtc
+            .clear_interrupt(stm32f4xx_hal::rtc::Event::Wakeup);
+        let mut _lcd = cx.local.lcd.get();
 
-        lcd.set_cursor(0, 20).unwrap();
-        lcd.write_str("test3").unwrap();
+        match cx.local.tx.write(0xf8) {
+            Ok(_) => {}
+            Err(_) => defmt::info!("send error"),
+        }
 
-        lcd.set_cursor(1, 20).unwrap();
-        lcd.write_str("test4").unwrap();
+        if *cx.local.counter % 24 == 0 {
+            defmt::info!("tick");
+        }
+
+        *cx.local.counter += 1;
     }
 
-    #[task(binds = DMA2_STREAM2, priority = 2, shared = [transfer], local = [buffer])]
-    fn midi_dma2(cx: midi_dma2::Context) {
-        let mut shared = cx.shared;
-        let local = cx.local;
-        let buffer = shared.transfer.lock(|transfer| {
-            let (buffer, _) = transfer
-                .next_transfer(local.buffer.take().expect("Failed to take buffer"))
-                .expect("Failed to get dma buffer");
-            buffer
-        });
-        defmt::info!(
-            "dma buffer full: {}, {}, {}, {}, {}, {}, {}, {}",
-            buffer[0],
-            buffer[1],
-            buffer[2],
-            buffer[3],
-            buffer[4],
-            buffer[5],
-            buffer[6],
-            buffer[7],
-        );
-        buffer.fill(0);
-        *local.buffer = Some(buffer);
+    // Midi interrupt
+    #[task(binds = USART1, priority = 2, local=[rx])]
+    fn midi_int(cx: midi_int::Context) {
+        let serial = cx.local.rx;
+        match serial.read() {
+            Ok(b) => defmt::info!("Received: {}", b),
+            Err(_) => defmt::info!("Serial is empty"),
+        }
     }
 }
