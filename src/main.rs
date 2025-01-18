@@ -2,7 +2,7 @@
 #![no_std]
 #![feature(type_alias_impl_trait)]
 
-use mseq_hardware as _; // global logger + panicking-behavior + memory layout
+mod debug;
 
 #[rtic::app(
     device = stm32f4xx_hal::pac,
@@ -28,6 +28,7 @@ mod app {
         timer::DelayUs,
     };
 
+    //TODO: understand and add comment
     systick_monotonic!(Mono, 100);
 
     struct Lcd {
@@ -65,11 +66,7 @@ mod app {
     fn init(mut cx: init::Context) -> (Shared, Local) {
         defmt::info!("init");
 
-        // Timer
-        // Mono::start(cx.core.SYST, 12_000_000);
-
         // Serial connection
-        let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
         let rcc = cx.device.RCC.constrain();
         let clocks = rcc.cfgr.use_hse(25.MHz()).freeze();
         let gpioa = cx.device.GPIOA.split();
@@ -93,7 +90,8 @@ mod app {
 
         tx.write(0xfa).unwrap();
 
-        // Fixed time update
+        // Clock
+        let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
         rtc.enable_wakeup(17606.micros::<1, 1_000_000>().into());
         rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
 
@@ -142,14 +140,11 @@ mod app {
         }
     }
 
-    #[task(binds = RTC_WKUP, priority = 2, local = [lcd, counter, tx, rtc])]
-    fn fixed_time(cx: fixed_time::Context) {
-        // Fixed time update
-        // defmt::info!("tick");
+    #[task(binds = RTC_WKUP, priority = 2, local = [counter, tx, rtc])]
+    fn clock(cx: clock::Context) {
         cx.local
             .rtc
             .clear_interrupt(stm32f4xx_hal::rtc::Event::Wakeup);
-        let mut _lcd = cx.local.lcd.get();
 
         match cx.local.tx.write(0xf8) {
             Ok(_) => {}

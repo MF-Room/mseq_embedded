@@ -1,57 +1,38 @@
 [package]
 name = "mseq_hardware"
 version = "0.1.0"
-authors = ["Marius Debussche <marius.debussche@gmail.com>"]
+authors = ["Julien Eudine <julien@eudine.fr>", "Marius Debussche <marius.debussche@gmail.com>"]
 edition = "2018"
 
 [dependencies]
 cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
+stm32f4xx-hal = { version = "0.22.1", features = ["stm32f411"] }
+# Loger & Formating 
 defmt = { version = "0.3", features = ["encoding-rzcobs"] }
 defmt-brtt = { version = "0.1", default-features = false, features = ["rtt"] }
+# Panic handler
 panic-probe = { version = "0.3", features = ["print-defmt"] }
+# Interrup manager
 rtic = { version = "2.0.0", features = [ "thumbv7-backend" ] }
-stm32f4xx-hal = { version = "0.22.1", features = ["stm32f411"] }
 # TODO add a monotonic if you use scheduling
 rtic-monotonics = { version = "2.0.3", features = [ "cortex-m-systick" ]}
 lcd-lcm1602-i2c = "0.3.0"
 
-# cargo build/run
 [profile.dev]
 codegen-units = 1
-debug = 2
-debug-assertions = true # <-
+debug = true
 incremental = false
-opt-level = "s" # <-
-overflow-checks = true # <-
+lto = true
+opt-level = 2
+overflow-checks = true
 
-# cargo test
-[profile.test]
-codegen-units = 1
-debug = 2
-debug-assertions = true # <-
-incremental = false
-opt-level = "s" # <-
-overflow-checks = true # <-
-
-# cargo build/run --release
 [profile.release]
 codegen-units = 1
-debug = 2
-debug-assertions = false # <-
+debug = false
 incremental = false
-lto = 'fat'
-opt-level = "s" # <-
-overflow-checks = false # <-
-
-# cargo test --release
-[profile.bench]
-codegen-units = 1
-debug = 2
-debug-assertions = false # <-
-incremental = false
-lto = 'fat'
-opt-level = "s" # <-
-overflow-checks = false # <-
+lto = true
+opt-level = 2
+overflow-checks = false
 
 # uncomment this to switch from the crates.io version of defmt to its git version
 # check app-template's README for instructions
