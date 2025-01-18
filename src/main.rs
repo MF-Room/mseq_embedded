@@ -2,6 +2,7 @@
 #![no_std]
 #![feature(type_alias_impl_trait)]
 
+extern crate alloc;
 mod debug;
 
 #[rtic::app(
@@ -15,6 +16,13 @@ mod debug;
 mod app {
     const BUFFER_SIZE: usize = 8;
     const LCD_ADDRESS: u8 = 0x27;
+
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use embedded_alloc::LlffHeap as Heap;
+
+    #[global_allocator]
+    static HEAP: Heap = Heap::empty();
 
     use rtic_monotonics::systick::prelude::*;
     use stm32f4xx_hal::{
@@ -65,6 +73,9 @@ mod app {
     #[init(local = [buf1: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE], buf2: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE]])]
     fn init(mut cx: init::Context) -> (Shared, Local) {
         defmt::info!("init");
+
+        // Initilialize allocator
+        allocator_init();
 
         // Serial connection
         let rcc = cx.device.RCC.constrain();
@@ -119,6 +130,10 @@ mod app {
             lcd.write_str("test2").unwrap();
         }
 
+        // Test allocator
+        let mut v: Vec<u32> = vec![];
+        v.push(1);
+
         (
             Shared {},
             Local {
@@ -166,5 +181,12 @@ mod app {
             Ok(b) => defmt::info!("Received: {}", b),
             Err(_) => defmt::info!("Serial is empty"),
         }
+    }
+
+    fn allocator_init() {
+        const HEAP_SIZE: usize = 1024;
+        use core::mem::MaybeUninit;
+        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
+        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
     }
 }
