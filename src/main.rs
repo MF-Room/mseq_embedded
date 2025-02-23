@@ -4,6 +4,7 @@
 
 extern crate alloc;
 mod debug;
+mod midi_connection;
 
 #[rtic::app(
     device = stm32f4xx_hal::pac,
@@ -17,9 +18,11 @@ mod app {
     const BUFFER_SIZE: usize = 8;
     const LCD_ADDRESS: u8 = 0x27;
 
+    use crate::midi_connection::MidiOut;
     use alloc::vec;
     use alloc::vec::Vec;
     use embedded_alloc::LlffHeap as Heap;
+    use mseq::MidiController;
 
     #[global_allocator]
     static HEAP: Heap = Heap::empty();
@@ -39,6 +42,7 @@ mod app {
     //TODO: understand and add comment
     systick_monotonic!(Mono, 100);
 
+    /*
     struct Lcd {
         i2c: stm32f4xx_hal::i2c::I2c<I2C1>,
         delay: DelayUs<TIM3>,
@@ -57,17 +61,18 @@ mod app {
                 .with_rows(2)
         }
     }
+    */
 
     #[shared]
     struct Shared {}
 
     #[local]
     struct Local {
-        lcd: Lcd,
+        // lcd: Lcd,
         rx: Rx<USART1>,
-        tx: Tx<USART1>,
         counter: u32,
         rtc: Rtc,
+        midi_controller: MidiController<MidiOut>,
     }
 
     #[init(local = [buf1: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE], buf2: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE]])]
@@ -84,6 +89,8 @@ mod app {
         let rx_1 = gpioa.pa10.into_alternate();
         let tx_1 = gpioa.pa9.into_alternate();
 
+        defmt::info!("init");
+
         let serial: Serial<USART1> = Serial::new(
             cx.device.USART1,
             (tx_1, rx_1),
@@ -99,6 +106,7 @@ mod app {
         let (mut tx, mut rx) = serial.split();
         rx.listen();
 
+        defmt::info!("init");
         tx.write(0xfa).unwrap();
 
         // Clock
@@ -106,6 +114,7 @@ mod app {
         rtc.enable_wakeup(17606.micros::<1, 1_000_000>().into());
         rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
 
+        /*
         // lcd screen
         let gpiob = cx.device.GPIOB.split();
         let mut i2c = stm32f4xx_hal::i2c::I2c::new(
@@ -114,6 +123,8 @@ mod app {
             stm32f4xx_hal::i2c::Mode::standard(50.kHz()),
             &clocks,
         );
+
+        defmt::info!("init");
         let mut delay = cx.device.TIM3.delay_us(&clocks);
         {
             let mut lcd = lcd_lcm1602_i2c::sync_lcd::Lcd::new(&mut i2c, &mut delay)
@@ -129,19 +140,24 @@ mod app {
             lcd.set_cursor(1, 0).unwrap();
             lcd.write_str("test2").unwrap();
         }
+        */
 
         // Test allocator
         let mut v: Vec<u32> = vec![];
         v.push(1);
 
+        // MidiOut
+        let midi_out = MidiOut::new(tx);
+        defmt::info!("init over!");
+
         (
             Shared {},
             Local {
-                lcd: Lcd { i2c, delay },
+                //lcd: Lcd { i2c, delay },
                 rx,
-                tx,
                 counter: 0,
                 rtc,
+                midi_controller: MidiController::new(midi_out),
             },
         )
     }
@@ -155,16 +171,20 @@ mod app {
         }
     }
 
-    #[task(binds = RTC_WKUP, priority = 2, local = [counter, tx, rtc])]
+    #[task(binds = RTC_WKUP, priority = 2, local = [counter, rtc, midi_controller])]
     fn clock(cx: clock::Context) {
         cx.local
             .rtc
             .clear_interrupt(stm32f4xx_hal::rtc::Event::Wakeup);
 
+        cx.local.midi_controller.send_clock();
+
+        /*
         match cx.local.tx.write(0xf8) {
             Ok(_) => {}
             Err(_) => defmt::info!("send error"),
         }
+        */
 
         if *cx.local.counter % 24 == 0 {
             defmt::info!("tick");

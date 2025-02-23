@@ -5,7 +5,9 @@
 
 ## Development Tools
 * probe-rs
-* Arm GNU Toolchain (arm-none-eabi)
+* Arm GNU Toolchain (arm-none-eabi) (gdb)
+* rustup target add thumbv7em-none-eabihf
+* cargo install flip-link
 
 ## Usage
 

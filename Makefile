@@ -3,13 +3,13 @@ GDB ?= arm-none-eabi-gdb
 SIZE ?= arm-none-eabi-size
 
 flash_debug:
-	cargo flash --bin minimal
+	cargo flash
 
 flash:
-	cargo flash --bin minimal --release
+	cargo flash --release
 
 rtt:
-	cargo rb minimal -r
+	cargo run -r
 
 gdb_server:
 	$(MAKE) flash_debug
