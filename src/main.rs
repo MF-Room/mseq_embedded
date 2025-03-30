@@ -3,8 +3,15 @@
 #![feature(type_alias_impl_trait)]
 
 extern crate alloc;
-mod debug;
+mod conductor;
+mod exit;
+mod heap;
 mod midi_connection;
+mod screen;
+
+use crate::conductor::*;
+
+use panic_rtt_target as _;
 
 #[rtic::app(
     device = stm32f4xx_hal::pac,
@@ -16,17 +23,11 @@ mod midi_connection;
 
 mod app {
     const BUFFER_SIZE: usize = 8;
-    const LCD_ADDRESS: u8 = 0x27;
 
-    use crate::midi_connection::MidiOut;
     use alloc::vec;
     use alloc::vec::Vec;
-    use embedded_alloc::LlffHeap as Heap;
+    use mseq::Conductor;
     use mseq::MidiController;
-
-    #[global_allocator]
-    static HEAP: Heap = Heap::empty();
-
     use rtic_monotonics::systick::prelude::*;
     use rtt_target::{rprintln, rtt_init_print};
     use stm32f4xx_hal::{
@@ -39,48 +40,36 @@ mod app {
         },
         timer::DelayUs,
     };
+
+    use crate::conductor;
+    use crate::heap;
+    use crate::midi_connection::MidiOut;
+    use crate::screen;
+
     //TODO: understand and add comment
     systick_monotonic!(Mono, 100);
-
-    /*
-    struct Lcd {
-        i2c: stm32f4xx_hal::i2c::I2c<I2C1>,
-        delay: DelayUs<TIM3>,
-    }
-
-    impl Lcd {
-        fn get(
-            &mut self,
-        ) -> lcd_lcm1602_i2c::sync_lcd::Lcd<
-            '_,
-            stm32f4xx_hal::i2c::I2c<I2C1>,
-            stm32f4xx_hal::timer::Delay<stm32f4xx_hal::pac::TIM3, 1000000>,
-        > {
-            lcd_lcm1602_i2c::sync_lcd::Lcd::new(&mut self.i2c, &mut self.delay)
-                .with_address(LCD_ADDRESS)
-                .with_rows(2)
-        }
-    }
-    */
 
     #[shared]
     struct Shared {}
 
     #[local]
     struct Local {
-        // lcd: Lcd,
+        lcd: screen::Lcd,
         rx: Rx<USART1>,
         counter: u32,
         rtc: Rtc,
         midi_controller: MidiController<MidiOut>,
+        conductor: conductor::Conductor,
     }
 
     #[init(local = [buf1: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE], buf2: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE]])]
     fn init(mut cx: init::Context) -> (Shared, Local) {
+        rtt_init_print!();
+        rprintln!("Init");
         // defmt::info!("init");
 
         // Initilialize allocator
-        allocator_init();
+        heap::allocator_init();
 
         // Serial connection
         let rcc = cx.device.RCC.constrain();
@@ -114,7 +103,6 @@ mod app {
         rtc.enable_wakeup(17606.micros::<1, 1_000_000>().into());
         rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
 
-        /*
         // lcd screen
         let gpiob = cx.device.GPIOB.split();
         let mut i2c = stm32f4xx_hal::i2c::I2c::new(
@@ -124,23 +112,8 @@ mod app {
             &clocks,
         );
 
-        defmt::info!("init");
+        // defmt::info!("init");
         let mut delay = cx.device.TIM3.delay_us(&clocks);
-        {
-            let mut lcd = lcd_lcm1602_i2c::sync_lcd::Lcd::new(&mut i2c, &mut delay)
-                .with_address(LCD_ADDRESS)
-                .with_rows(2)
-                .with_cursor_on(true)
-                .init()
-                .unwrap();
-
-            lcd.return_home().unwrap();
-            lcd.clear().unwrap();
-            lcd.write_str("test").unwrap();
-            lcd.set_cursor(1, 0).unwrap();
-            lcd.write_str("test2").unwrap();
-        }
-        */
 
         // Test allocator
         let mut v: Vec<u32> = vec![];
@@ -150,14 +123,20 @@ mod app {
         let midi_out = MidiOut::new(tx);
         //       defmt::info!("init over!");
 
+        let conductor = conductor::Conductor::new();
+
+        let mut midi_controller = MidiController::new(midi_out);
+        midi_controller.start();
+
         (
             Shared {},
             Local {
-                //lcd: Lcd { i2c, delay },
+                lcd: screen::Lcd::new(i2c, delay),
                 rx,
                 counter: 0,
                 rtc,
-                midi_controller: MidiController::new(midi_out),
+                midi_controller,
+                conductor,
             },
         )
     }
@@ -179,13 +158,6 @@ mod app {
 
         cx.local.midi_controller.send_clock();
 
-        /*
-        match cx.local.tx.write(0xf8) {
-            Ok(_) => {}
-            Err(_) => defmt::info!("send error"),
-        }
-        */
-
         if *cx.local.counter % 24 == 0 {
             //            defmt::info!("tick");
         }
@@ -201,12 +173,5 @@ mod app {
             Ok(b) => {}  // defmt::info!("Received: {}", b),
             Err(_) => {} //defmt::info!("Serial is empty"),
         }
-    }
-
-    fn allocator_init() {
-        const HEAP_SIZE: usize = 1024;
-        use core::mem::MaybeUninit;
-        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
-        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
     }
 }

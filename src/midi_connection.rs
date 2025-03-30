@@ -1,5 +1,11 @@
-use mseq::{self, MidiError};
 use stm32f4xx_hal::{pac::USART1, prelude::*, serial::Tx};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum MidiError {
+    #[error("Error writing midi connection")]
+    Write,
+}
 
 pub struct MidiOut {
     tx: Tx<USART1>,
@@ -11,40 +17,50 @@ impl MidiOut {
     }
 }
 
+const CLOCK: u8 = 0xf8;
+const START: u8 = 0xfa;
+const CONTINUE: u8 = 0xfb;
+const STOP: u8 = 0xfc;
+const NOTE_ON: u8 = 0x90;
+const NOTE_OFF: u8 = 0x80;
+const CC: u8 = 0xB0;
+
 impl mseq::MidiOut for MidiOut {
+    type Error = MidiError;
     fn send_start(&mut self) -> Result<(), MidiError> {
-        //TODO
-        Ok(())
+        self.tx.write(START).map_err(|_| MidiError::Write)
     }
     fn send_continue(&mut self) -> Result<(), MidiError> {
-        //TODO
-        Ok(())
+        self.tx.write(CONTINUE).map_err(|_| MidiError::Write)
     }
     fn send_stop(&mut self) -> Result<(), MidiError> {
-        //TODO
-        Ok(())
+        self.tx.write(STOP).map_err(|_| MidiError::Write)
     }
     fn send_clock(&mut self) -> Result<(), MidiError> {
-        match self.tx.write(0xf8) {
-            Ok(_) => Ok(()),
-            Err(_) => {
-                //TODO
-                // defmt::info!("send error");
-                Ok(())
-            }
-        }
+        self.tx.write(CLOCK).map_err(|_| MidiError::Write)
     }
-
     fn send_note_on(&mut self, channel_id: u8, note: u8, velocity: u8) -> Result<(), MidiError> {
-        //TODO
+        self.tx
+            .write(NOTE_ON | (channel_id - 1))
+            .map_err(|_| MidiError::Write)?;
+        self.tx.write(note).map_err(|_| MidiError::Write)?;
+        self.tx.write(velocity).map_err(|_| MidiError::Write)?;
         Ok(())
     }
     fn send_note_off(&mut self, channel_id: u8, note: u8) -> Result<(), MidiError> {
-        //TODO
+        self.tx
+            .write(NOTE_OFF | (channel_id - 1))
+            .map_err(|_| MidiError::Write)?;
+        self.tx.write(note).map_err(|_| MidiError::Write)?;
+        self.tx.write(0).map_err(|_| MidiError::Write)?;
         Ok(())
     }
     fn send_cc(&mut self, channel_id: u8, parameter: u8, value: u8) -> Result<(), MidiError> {
-        //TODO
+        self.tx
+            .write(CC | (channel_id - 1))
+            .map_err(|_| MidiError::Write)?;
+        self.tx.write(parameter).map_err(|_| MidiError::Write)?;
+        self.tx.write(value).map_err(|_| MidiError::Write)?;
         Ok(())
     }
 }
