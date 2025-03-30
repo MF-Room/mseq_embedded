@@ -29,7 +29,7 @@ impl mseq::MidiOut for MidiOut {
             Ok(_) => Ok(()),
             Err(_) => {
                 //TODO
-                defmt::info!("send error");
+                // defmt::info!("send error");
                 Ok(())
             }
         }

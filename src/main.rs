@@ -28,6 +28,7 @@ mod app {
     static HEAP: Heap = Heap::empty();
 
     use rtic_monotonics::systick::prelude::*;
+    use rtt_target::{rprintln, rtt_init_print};
     use stm32f4xx_hal::{
         pac::{I2C1, TIM3, USART1},
         prelude::*,
@@ -38,7 +39,6 @@ mod app {
         },
         timer::DelayUs,
     };
-
     //TODO: understand and add comment
     systick_monotonic!(Mono, 100);
 
@@ -77,7 +77,7 @@ mod app {
 
     #[init(local = [buf1: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE], buf2: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE]])]
     fn init(mut cx: init::Context) -> (Shared, Local) {
-        defmt::info!("init");
+        // defmt::info!("init");
 
         // Initilialize allocator
         allocator_init();
@@ -89,7 +89,7 @@ mod app {
         let rx_1 = gpioa.pa10.into_alternate();
         let tx_1 = gpioa.pa9.into_alternate();
 
-        defmt::info!("init");
+        //        defmt::info!("init");
 
         let serial: Serial<USART1> = Serial::new(
             cx.device.USART1,
@@ -106,7 +106,7 @@ mod app {
         let (mut tx, mut rx) = serial.split();
         rx.listen();
 
-        defmt::info!("init");
+        //        defmt::info!("init");
         tx.write(0xfa).unwrap();
 
         // Clock
@@ -148,7 +148,7 @@ mod app {
 
         // MidiOut
         let midi_out = MidiOut::new(tx);
-        defmt::info!("init over!");
+        //       defmt::info!("init over!");
 
         (
             Shared {},
@@ -164,7 +164,7 @@ mod app {
 
     #[idle]
     fn idle(_: idle::Context) -> ! {
-        defmt::info!("idle");
+        //        defmt::info!("idle");
 
         loop {
             continue;
@@ -187,7 +187,7 @@ mod app {
         */
 
         if *cx.local.counter % 24 == 0 {
-            defmt::info!("tick");
+            //            defmt::info!("tick");
         }
 
         *cx.local.counter += 1;
@@ -198,8 +198,8 @@ mod app {
     fn midi_int(cx: midi_int::Context) {
         let serial = cx.local.rx;
         match serial.read() {
-            Ok(b) => defmt::info!("Received: {}", b),
-            Err(_) => defmt::info!("Serial is empty"),
+            Ok(b) => {}  // defmt::info!("Received: {}", b),
+            Err(_) => {} //defmt::info!("Serial is empty"),
         }
     }
 
