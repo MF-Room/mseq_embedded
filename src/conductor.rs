@@ -1,3 +1,4 @@
+use log::trace;
 use mseq::{Conductor, MidiNote, Track};
 
 struct MyTrack {
@@ -12,16 +13,18 @@ impl Track for MyTrack {
         midi_controller: &mut mseq::MidiController<impl mseq::MidiOut>,
     ) {
         // Midi channel id to send the note to
-        if step % 8 == 0 {
+        if step % 24 == 0 {
+            trace!("Play track {}", step);
+
             // Choose a random note
             let note = MidiNote {
-                note: ((step % 256) as u8).into(),
+                note: mseq::Note::C,
                 octave: 4,
                 vel: 127,
             };
 
             // Note length in number of steps
-            let note_length = 3;
+            let note_length = 12;
 
             // Request to play the note to the midi controller.
             midi_controller.play_note(note, note_length, self.channel_id);
@@ -53,7 +56,7 @@ impl Conductor for UserConductor {
 impl UserConductor {
     pub fn new() -> Self {
         Self {
-            track: MyTrack { channel_id: 1 },
+            track: MyTrack { channel_id: 10 },
         }
     }
 }

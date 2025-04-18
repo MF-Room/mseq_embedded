@@ -1,3 +1,4 @@
+use log::trace;
 use stm32f4xx_hal::{pac::USART1, prelude::*, serial::Tx};
 use thiserror::Error;
 
@@ -40,6 +41,8 @@ impl mseq::MidiOut for MidiOut {
         self.tx.write(CLOCK).map_err(|_| MidiError::Write)
     }
     fn send_note_on(&mut self, channel_id: u8, note: u8, velocity: u8) -> Result<(), MidiError> {
+        trace!("Send note on {} {} {}", channel_id, note, velocity);
+
         self.tx
             .write(NOTE_ON | (channel_id - 1))
             .map_err(|_| MidiError::Write)?;
@@ -48,6 +51,8 @@ impl mseq::MidiOut for MidiOut {
         Ok(())
     }
     fn send_note_off(&mut self, channel_id: u8, note: u8) -> Result<(), MidiError> {
+        trace!("Send note off {} {}", channel_id, note);
+
         self.tx
             .write(NOTE_OFF | (channel_id - 1))
             .map_err(|_| MidiError::Write)?;
