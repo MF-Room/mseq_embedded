@@ -9,8 +9,6 @@ mod heap;
 mod midi_connection;
 mod screen;
 
-use crate::conductor::*;
-
 use panic_rtt_target as _;
 
 #[rtic::app(
@@ -26,19 +24,17 @@ mod app {
 
     use alloc::vec;
     use alloc::vec::Vec;
-    use mseq::Conductor;
     use mseq::MidiController;
     use rtic_monotonics::systick::prelude::*;
     use rtt_target::{rprintln, rtt_init_print};
     use stm32f4xx_hal::{
-        pac::{I2C1, TIM3, USART1},
+        pac::USART1,
         prelude::*,
         rtc::Rtc,
         serial::{
             config::{DmaConfig, StopBits::STOP1},
-            Config, Rx, Serial, Tx,
+            Config, Rx, Serial,
         },
-        timer::DelayUs,
     };
 
     use crate::conductor;
@@ -56,10 +52,10 @@ mod app {
     struct Local {
         lcd: screen::Lcd,
         rx: Rx<USART1>,
-        counter: u32,
         rtc: Rtc,
-        midi_controller: MidiController<MidiOut>,
+        mseq_ctx: mseq::Context<MidiOut>,
         conductor: conductor::Conductor,
+        clock_period: u32,
     }
 
     #[init(local = [buf1: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE], buf2: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE]])]
@@ -98,14 +94,9 @@ mod app {
         //        defmt::info!("init");
         tx.write(0xfa).unwrap();
 
-        // Clock
-        let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
-        rtc.enable_wakeup(17606.micros::<1, 1_000_000>().into());
-        rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
-
         // lcd screen
         let gpiob = cx.device.GPIOB.split();
-        let mut i2c = stm32f4xx_hal::i2c::I2c::new(
+        let i2c = stm32f4xx_hal::i2c::I2c::new(
             cx.device.I2C1,
             (gpiob.pb6, gpiob.pb7),
             stm32f4xx_hal::i2c::Mode::standard(50.kHz()),
@@ -113,7 +104,7 @@ mod app {
         );
 
         // defmt::info!("init");
-        let mut delay = cx.device.TIM3.delay_us(&clocks);
+        let delay = cx.device.TIM3.delay_us(&clocks);
 
         // Test allocator
         let mut v: Vec<u32> = vec![];
@@ -123,46 +114,54 @@ mod app {
         let midi_out = MidiOut::new(tx);
         //       defmt::info!("init over!");
 
+        // Think about user interface for this
         let conductor = conductor::Conductor::new();
+        let midi_controller = MidiController::new(midi_out);
+        let mseq_ctx = mseq::Context::new(midi_controller);
 
-        let mut midi_controller = MidiController::new(midi_out);
-        midi_controller.start();
+        // Clock
+        let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
+        let clock_period = mseq_ctx.get_period_us() as u32;
+        rtc.enable_wakeup(clock_period.micros::<1, 1_000_000>().into());
+        rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
 
         (
             Shared {},
             Local {
                 lcd: screen::Lcd::new(i2c, delay),
                 rx,
-                counter: 0,
                 rtc,
-                midi_controller,
+                mseq_ctx,
                 conductor,
+                clock_period,
             },
         )
     }
 
     #[idle]
     fn idle(_: idle::Context) -> ! {
-        //        defmt::info!("idle");
-
         loop {
             continue;
         }
     }
 
-    #[task(binds = RTC_WKUP, priority = 2, local = [counter, rtc, midi_controller])]
-    fn clock(cx: clock::Context) {
+    #[task(binds = RTC_WKUP, priority = 2, local = [rtc, mseq_ctx, conductor, clock_period])]
+    fn clock(mut cx: clock::Context) {
         cx.local
             .rtc
             .clear_interrupt(stm32f4xx_hal::rtc::Event::Wakeup);
 
-        cx.local.midi_controller.send_clock();
+        let mseq_ctx = &mut cx.local.mseq_ctx;
+        mseq_ctx.process_post_tick();
+        mseq_ctx.process_pre_tick(cx.local.conductor);
 
-        if *cx.local.counter % 24 == 0 {
-            //            defmt::info!("tick");
+        // If clock changed, update callback timing
+        if mseq_ctx.get_period_us() as u32 != *cx.local.clock_period {
+            *cx.local.clock_period = mseq_ctx.get_period_us() as u32;
+            cx.local
+                .rtc
+                .enable_wakeup(cx.local.clock_period.micros::<1, 1_000_000>().into());
         }
-
-        *cx.local.counter += 1;
     }
 
     // Midi interrupt
