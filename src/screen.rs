@@ -15,7 +15,7 @@ impl Lcd {
         Self { i2c, delay }
     }
 
-    fn get(
+    pub fn get(
         &mut self,
     ) -> lcd_lcm1602_i2c::sync_lcd::Lcd<
         '_,

@@ -54,7 +54,7 @@ mod app {
         rx: Rx<USART1>,
         rtc: Rtc,
         mseq_ctx: mseq::Context<MidiOut>,
-        conductor: conductor::Conductor,
+        conductor: conductor::UserConductor,
         clock_period: u32,
     }
 
@@ -115,7 +115,7 @@ mod app {
         //       defmt::info!("init over!");
 
         // Think about user interface for this
-        let conductor = conductor::Conductor::new();
+        let conductor = conductor::UserConductor::new();
         let midi_controller = MidiController::new(midi_out);
         let mseq_ctx = mseq::Context::new(midi_controller);
 
