@@ -7,6 +7,7 @@ mod conductor;
 mod exit;
 mod heap;
 mod midi_connection;
+mod rtt_logger;
 mod screen;
 
 use panic_rtt_target as _;
@@ -20,13 +21,11 @@ use panic_rtt_target as _;
 )]
 
 mod app {
-    const BUFFER_SIZE: usize = 8;
-
     use alloc::vec;
     use alloc::vec::Vec;
+    use log::trace;
     use mseq::MidiController;
     use rtic_monotonics::systick::prelude::*;
-    use rtt_target::{rprintln, rtt_init_print};
     use stm32f4xx_hal::{
         pac::USART1,
         prelude::*,
@@ -37,10 +36,10 @@ mod app {
         },
     };
 
-    use crate::conductor;
-    use crate::heap;
     use crate::midi_connection::MidiOut;
     use crate::screen;
+    use crate::{conductor, rtt_logger};
+    use crate::{heap, rtt_logger::RttLogger};
 
     //TODO: understand and add comment
     systick_monotonic!(Mono, 100);
@@ -58,11 +57,11 @@ mod app {
         clock_period: u32,
     }
 
-    #[init(local = [buf1: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE], buf2: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE]])]
+    #[init(local = [logger: RttLogger = RttLogger {level: log::LevelFilter::Off} ])]
     fn init(mut cx: init::Context) -> (Shared, Local) {
-        rtt_init_print!();
-        rprintln!("Init");
-        // defmt::info!("init");
+        rtt_logger::RttLogger::init(cx.local.logger, log::LevelFilter::Trace);
+
+        trace!("Init");
 
         // Initilialize allocator
         heap::allocator_init();
@@ -73,8 +72,6 @@ mod app {
         let gpioa = cx.device.GPIOA.split();
         let rx_1 = gpioa.pa10.into_alternate();
         let tx_1 = gpioa.pa9.into_alternate();
-
-        //        defmt::info!("init");
 
         let serial: Serial<USART1> = Serial::new(
             cx.device.USART1,
@@ -91,7 +88,6 @@ mod app {
         let (mut tx, mut rx) = serial.split();
         rx.listen();
 
-        //        defmt::info!("init");
         tx.write(0xfa).unwrap();
 
         // lcd screen
@@ -103,7 +99,6 @@ mod app {
             &clocks,
         );
 
-        // defmt::info!("init");
         let delay = cx.device.TIM3.delay_us(&clocks);
 
         // Test allocator
@@ -112,7 +107,6 @@ mod app {
 
         // MidiOut
         let midi_out = MidiOut::new(tx);
-        //       defmt::info!("init over!");
 
         // Think about user interface for this
         let conductor = conductor::UserConductor::new();
@@ -124,6 +118,8 @@ mod app {
         let clock_period = mseq_ctx.get_period_us() as u32;
         rtc.enable_wakeup(clock_period.micros::<1, 1_000_000>().into());
         rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
+
+        trace!("Init over");
 
         (
             Shared {},
@@ -147,6 +143,8 @@ mod app {
 
     #[task(binds = RTC_WKUP, priority = 2, local = [rtc, mseq_ctx, conductor, clock_period])]
     fn clock(mut cx: clock::Context) {
+        trace!("Clock");
+
         cx.local
             .rtc
             .clear_interrupt(stm32f4xx_hal::rtc::Event::Wakeup);

@@ -1,9 +1,4 @@
-use stm32f4xx_hal::{
-    block,
-    pac::{dma1::ST, i2c1::cr1::START, USART1},
-    prelude::*,
-    serial::Tx,
-};
+use stm32f4xx_hal::{block, pac::USART1, prelude::*, serial::Tx};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
