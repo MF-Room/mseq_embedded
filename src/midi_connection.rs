@@ -1,4 +1,4 @@
-use stm32f4xx_hal::{block, pac::USART1, prelude::*, serial::Tx};
+use stm32f4xx_hal::{block, pac::USART1, serial::Tx};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -49,9 +49,9 @@ impl mseq::MidiOut for MidiOut {
         wb(&mut self.tx, &[CC | (channel_id - 1), parameter, value])
     }
 }
-fn wb<U>(tx: &mut Tx<U>, bytes: &[u8]) -> Result<(), MidiError>
+fn wb<U>(tx: &mut U, bytes: &[u8]) -> Result<(), MidiError>
 where
-    U: stm32f4xx_hal::serial::Instance,
+    U: embedded_hal_nb::serial::Write<u8>,
 {
     for &b in bytes {
         block!(tx.write(b)).map_err(|_| MidiError::Write)?;
