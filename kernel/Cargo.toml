@@ -1,0 +1,39 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+authors = ["Julien Eudine <julien@eudine.fr>", "Marius Debussche <marius.debussche@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
+stm32f4xx-hal = { version = "0.22.1", features = ["stm32f411"] }
+rtt-target = "0.6.1"
+panic-rtt-target = "0.2.0"
+# Minimal RTOS
+rtic = { version = "2.0.0", features = [ "thumbv7-backend" ] }
+# TODO add a monotonic if you use scheduling
+rtic-monotonics = { version = "2.0.3", features = [ "cortex-m-systick" ]}
+# LCD screen
+lcd-lcm1602-i2c = "0.3.0"
+# Allocator
+embedded-alloc = "0.6.0"
+mseq = {path = "../../mseq", default-features = false}
+thiserror = {version = "2.0.12", default-features=false}
+log = { version = "0.4.27", default-features = false }
+embedded-hal-nb = "1.0.0"
+
+[profile.dev]
+codegen-units = 1
+debug = true
+incremental = false
+lto = true
+opt-level = 2
+overflow-checks = true
+
+[profile.release]
+codegen-units = 1
+debug = false
+incremental = false
+lto = true
+opt-level = 2
+overflow-checks = false

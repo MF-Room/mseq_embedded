@@ -1,0 +1,23 @@
+[package]
+name = "user"
+version = "0.1.0"
+authors = ["Julien Eudine <julien@eudine.fr>", "Marius Debussche <marius.debussche@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+
+[profile.dev]
+codegen-units = 1
+debug = true
+incremental = false
+lto = true
+opt-level = 2
+overflow-checks = true
+
+[profile.release]
+codegen-units = 1
+debug = false
+incremental = false
+lto = true
+opt-level = 2
+overflow-checks = false

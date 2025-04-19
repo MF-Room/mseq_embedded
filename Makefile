@@ -1,15 +1,16 @@
 CHIP := STM32F411CEUx
 GDB ?= arm-none-eabi-gdb
 SIZE ?= arm-none-eabi-size
+PACKAGE := kernel
 
 flash_debug:
 	cargo flash
 
 flash:
-	cargo flash --release
+	cargo flash --chip $(CHIP) --release
 
 rtt:
-	cargo run -r
+	cargo run -p $(PACKAGE) -r
 
 gdb_server:
 	$(MAKE) flash_debug
