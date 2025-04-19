@@ -1,24 +1,24 @@
-CHIP := STM32F411CEUx
+CHIP := --chip STM32F411CEUx
 GDB ?= arm-none-eabi-gdb
 SIZE ?= arm-none-eabi-size
-PACKAGE := kernel
+PACKAGE := -p kernel
 
 flash_debug:
-	cargo flash
+	cargo flash $(CHIP) $(PACKAGE)
 
 flash:
-	cargo flash --chip $(CHIP) --release
+	cargo flash $(CHIP) $(PACKAGE) -r
 
 rtt:
-	cargo run -p $(PACKAGE) -r
+	cargo run $(PACKAGE) -r
 
 gdb_server:
 	$(MAKE) flash_debug
-	probe-rs gdb --chip $(CHIP)
+	probe-rs gdb $(CHIP)
 
 gdb:
-	 $(GDB) -x init.gdb target/thumbv7em-none-eabihf/debug/mseq_hardware
+	 $(GDB) -x init.gdb target/thumbv7em-none-eabihf/debug/kernel
 
 size:
-	cargo build --release
-	$(SIZE) -G target/thumbv7em-none-eabihf/release/mseq_hardware
+	cargo build $(PACKAGE) -r
+	$(SIZE) -G target/thumbv7em-none-eabihf/release/kernel
