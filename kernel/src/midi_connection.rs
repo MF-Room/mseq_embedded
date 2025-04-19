@@ -1,10 +1,11 @@
+use crate::driver::{write, DriverError};
 use stm32f4xx_hal::{block, pac::USART1, serial::Tx};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum MidiError {
-    #[error("Error writing midi connection")]
-    Write,
+    #[error("MIDI: Error when calling Diver.\n\t`{0}`")]
+    Util(#[from] DriverError),
 }
 
 pub struct MidiOut {
@@ -28,33 +29,33 @@ const CC: u8 = 0xB0;
 impl mseq::MidiOut for MidiOut {
     type Error = MidiError;
     fn send_start(&mut self) -> Result<(), MidiError> {
-        wb(&mut self.tx, &[START])
+        Ok(write(&mut self.tx, &[START])?)
     }
     fn send_continue(&mut self) -> Result<(), MidiError> {
-        wb(&mut self.tx, &[CONTINUE])
+        Ok(write(&mut self.tx, &[CONTINUE])?)
     }
     fn send_stop(&mut self) -> Result<(), MidiError> {
-        wb(&mut self.tx, &[STOP])
+        Ok(write(&mut self.tx, &[STOP])?)
     }
     fn send_clock(&mut self) -> Result<(), MidiError> {
-        wb(&mut self.tx, &[CLOCK])
+        Ok(write(&mut self.tx, &[CLOCK])?)
     }
     fn send_note_on(&mut self, channel_id: u8, note: u8, velocity: u8) -> Result<(), MidiError> {
-        wb(&mut self.tx, &[NOTE_ON | (channel_id - 1), note, velocity])
+        Ok(write(
+            &mut self.tx,
+            &[NOTE_ON | (channel_id - 1), note, velocity],
+        )?)
     }
     fn send_note_off(&mut self, channel_id: u8, note: u8) -> Result<(), MidiError> {
-        wb(&mut self.tx, &[NOTE_OFF | (channel_id - 1), note, 0])
+        Ok(write(
+            &mut self.tx,
+            &[NOTE_OFF | (channel_id - 1), note, 0],
+        )?)
     }
     fn send_cc(&mut self, channel_id: u8, parameter: u8, value: u8) -> Result<(), MidiError> {
-        wb(&mut self.tx, &[CC | (channel_id - 1), parameter, value])
+        Ok(write(
+            &mut self.tx,
+            &[CC | (channel_id - 1), parameter, value],
+        )?)
     }
-}
-fn wb<U>(tx: &mut U, bytes: &[u8]) -> Result<(), MidiError>
-where
-    U: embedded_hal_nb::serial::Write<u8>,
-{
-    for &b in bytes {
-        block!(tx.write(b)).map_err(|_| MidiError::Write)?;
-    }
-    Ok(())
 }
