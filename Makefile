@@ -3,11 +3,8 @@ GDB ?= arm-none-eabi-gdb
 SIZE ?= arm-none-eabi-size
 PACKAGE := -p kernel
 
-flash_debug:
-	cargo flash $(CHIP) $(PACKAGE)
-
 flash:
-	cargo flash $(CHIP) $(PACKAGE) -r
+	cargo flash $(CHIP) $(PACKAGE) -- -r
 
 rtt:
 	cargo run $(PACKAGE) -r
@@ -18,6 +15,9 @@ gdb_server:
 
 gdb:
 	 $(GDB) -x init.gdb target/thumbv7em-none-eabihf/debug/kernel
+
+flash_debug:
+	cargo flash $(CHIP) $(PACKAGE)
 
 size:
 	cargo build $(PACKAGE) -r

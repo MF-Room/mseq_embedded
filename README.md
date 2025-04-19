@@ -1,4 +1,4 @@
-# MSeq Hardware
+# MSeq Embedded
 
 ## Targeted Microcontroller
 * STM32F411CE

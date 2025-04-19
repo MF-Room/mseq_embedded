@@ -3,7 +3,6 @@
 #![feature(type_alias_impl_trait)]
 
 extern crate alloc;
-mod conductor;
 mod exit;
 mod heap;
 mod midi_connection;
@@ -37,9 +36,10 @@ mod app {
     };
 
     use crate::midi_connection::MidiOut;
+    use crate::rtt_logger;
     use crate::screen;
-    use crate::{conductor, rtt_logger};
     use crate::{heap, rtt_logger::RttLogger};
+    use user::conductor;
 
     //TODO: understand and add comment
     systick_monotonic!(Mono, 100);
