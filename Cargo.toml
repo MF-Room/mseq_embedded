@@ -1,21 +1,5 @@
-[package]
-name = "mseq_hardware"
-version = "0.1.0"
-authors = ["Marius Debussche <marius.debussche@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-cortex-m = "0.7.3"
-cortex-m-rt = "0.7.0" # Startup code and minimal runtime
-panic-halt = "0.2.0"
-stm32f4xx-hal = { version = "0.22.1", features = ["stm32f411"] }
-rtt-target = { version = "0.3.1", features = ["cortex-m"] }
-panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
-embedded-alloc = "0.6.0"
-
-[dev-dependencies]
-rtt-target = { version = "0.3.1", features = ["cortex-m"] }
-panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
-
-[profile.release]
-debug = true
+[workspace]
+members = [
+    "kernel",
+    "user",
+]

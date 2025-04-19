@@ -1,13 +1,19 @@
-# MSeq Hardware
+# MSeq Embedded
 
 ## Targeted Microcontroller
 * STM32F411CE
 
 ## Development Tools
 * probe-rs
-* Arm GNU Toolchain (arm-none-eabi)
+* Arm GNU Toolchain (arm-none-eabi) (gdb)
+* rustup target add thumbv7em-none-eabihf
+* cargo install flip-link
 
 ## Usage
+
+Midi UART:
+* RX: A10
+* TX: A9
 
 ### Flash only
 
@@ -31,4 +37,3 @@ Open GDB client:
 ```bash
 make gdb
 ```
-
