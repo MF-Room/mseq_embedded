@@ -4,7 +4,6 @@
 
 extern crate alloc;
 mod driver;
-mod exit;
 mod heap;
 mod midi_connection;
 mod rtt_logger;
@@ -23,7 +22,7 @@ use panic_rtt_target as _;
 mod app {
     use alloc::vec;
     use alloc::vec::Vec;
-    use log::trace;
+    use log::{debug, trace};
     use mseq::MidiController;
     use rtic_monotonics::systick::prelude::*;
     use stm32f4xx_hal::{
@@ -168,7 +167,9 @@ mod app {
     fn midi_int(cx: midi_int::Context) {
         let serial = cx.local.rx;
         match serial.read() {
-            Ok(b) => {}  // defmt::info!("Received: {}", b),
+            Ok(b) => {
+                debug!("{b} received")
+            } // defmt::info!("Received: {}", b),
             Err(_) => {} //defmt::info!("Serial is empty"),
         }
     }

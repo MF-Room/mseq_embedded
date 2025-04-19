@@ -1,5 +1,5 @@
 use crate::driver::{write, DriverError};
-use stm32f4xx_hal::{block, pac::USART1, serial::Tx};
+use stm32f4xx_hal::{pac::USART1, serial::Tx};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
