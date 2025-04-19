@@ -1,5 +1,5 @@
 use log::trace;
-use mseq::{Conductor, MidiNote, Track};
+use mseq_core::{Conductor, MidiNote, Track};
 
 struct MyTrack {
     channel_id: u8,
@@ -10,14 +10,14 @@ impl Track for MyTrack {
     fn play_step(
         &mut self,
         step: u32,
-        midi_controller: &mut mseq::MidiController<impl mseq::MidiOut>,
+        midi_controller: &mut mseq_core::MidiController<impl mseq_core::MidiOut>,
     ) {
         // Midi channel id to send the note to
         if step % 24 == 0 {
             trace!("Play track {}", step);
 
             let note = MidiNote {
-                note: mseq::Note::C,
+                note: mseq_core::Note::C,
                 octave: 4,
                 vel: 127,
             };
@@ -36,12 +36,12 @@ pub struct UserConductor {
 }
 
 impl Conductor for UserConductor {
-    fn init(&mut self, context: &mut mseq::Context<impl mseq::MidiOut>) {
+    fn init(&mut self, context: &mut mseq_core::Context<impl mseq_core::MidiOut>) {
         // The sequencer is on pause by default
         context.start();
     }
 
-    fn update(&mut self, context: &mut mseq::Context<impl mseq::MidiOut>) {
+    fn update(&mut self, context: &mut mseq_core::Context<impl mseq_core::MidiOut>) {
         // The conductor plays the track
         context.midi.play_track(&mut self.track);
 

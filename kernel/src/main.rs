@@ -23,7 +23,7 @@ mod app {
     use alloc::vec;
     use alloc::vec::Vec;
     use log::{debug, trace};
-    use mseq::MidiController;
+    use mseq_core::MidiController;
     use rtic_monotonics::systick::prelude::*;
     use stm32f4xx_hal::{
         pac::USART1,
@@ -52,7 +52,7 @@ mod app {
         lcd: screen::Lcd,
         rx: Rx<USART1>,
         rtc: Rtc,
-        mseq_ctx: mseq::Context<MidiOut>,
+        mseq_ctx: mseq_core::Context<MidiOut>,
         conductor: conductor::UserConductor,
         clock_period: u32,
     }
@@ -111,7 +111,7 @@ mod app {
         // Think about user interface for this
         let conductor = conductor::UserConductor::new();
         let midi_controller = MidiController::new(midi_out);
-        let mseq_ctx = mseq::Context::new(midi_controller);
+        let mseq_ctx = mseq_core::Context::new(midi_controller);
 
         // Clock
         let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);

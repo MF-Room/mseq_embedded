@@ -283,7 +283,7 @@ dependencies = [
  "embedded-hal-nb",
  "lcd-lcm1602-i2c",
  "log",
- "mseq",
+ "mseq_core",
  "panic-rtt-target",
  "rtic",
  "rtic-monotonics",
@@ -329,18 +329,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
-name = "midly"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "207d755f4cb882d20c4da58d707ca9130a0c9bc5061f657a4f299b8e36362b7a"
-
-[[package]]
-name = "mseq"
-version = "0.1.2"
+name = "mseq_core"
+version = "0.1.0"
 dependencies = [
  "hashbrown",
  "log",
- "midly",
+ "serde",
  "thiserror",
 ]
 
@@ -563,6 +557,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
+name = "serde"
+version = "1.0.219"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.219"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -724,7 +738,7 @@ name = "user"
 version = "0.1.0"
 dependencies = [
  "log",
- "mseq",
+ "mseq_core",
 ]
 
 [[package]]

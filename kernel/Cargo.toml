@@ -10,7 +10,7 @@ stm32f4xx-hal = { version = "0.22.1", features = ["stm32f411"] }
 embedded-hal-nb = "1.0.0"
 rtt-target = "0.6.1"
 panic-rtt-target = "0.2.0"
-mseq = {path = "../../mseq", default-features = false}
+mseq_core = {path = "../../mseq/mseq_core", default-features = false}
 thiserror = {version = "2.0.12", default-features=false}
 log = { version = "0.4.27", default-features = false }
 

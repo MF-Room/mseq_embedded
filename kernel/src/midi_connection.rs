@@ -26,7 +26,7 @@ const NOTE_ON: u8 = 0x90;
 const NOTE_OFF: u8 = 0x80;
 const CC: u8 = 0xB0;
 
-impl mseq::MidiOut for MidiOut {
+impl mseq_core::MidiOut for MidiOut {
     type Error = MidiError;
     fn send_start(&mut self) -> Result<(), MidiError> {
         Ok(write(&mut self.tx, &[START])?)
