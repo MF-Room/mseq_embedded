@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum MidiError {
-    #[error("MIDI: Error when calling Diver.\n\t`{0}`")]
+    #[error("Error when calling Diver.\n\tDriver: {0}")]
     Util(#[from] DriverError),
 }
 

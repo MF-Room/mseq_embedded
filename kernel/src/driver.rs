@@ -3,7 +3,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DriverError {
-    #[error("Driver: Error while writing to `{0}`.")]
+    #[error("Error while writing to {0}.")]
     Write(&'static str),
 }
 
