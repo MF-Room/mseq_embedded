@@ -9,6 +9,9 @@ flash:
 rtt:
 	cargo run $(PACKAGE) -r
 
+build:
+	cargo build $(PACKAGE) -r
+
 gdb_server:
 	$(MAKE) flash_debug
 	probe-rs gdb $(CHIP)

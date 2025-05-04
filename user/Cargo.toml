@@ -7,19 +7,3 @@ edition = "2018"
 [dependencies]
 log = { version = "0.4.27", default-features = false }
 mseq_core = {path = "../../mseq/mseq_core", default-features = false}
-
-[profile.dev]
-codegen-units = 1
-debug = true
-incremental = false
-lto = true
-opt-level = 2
-overflow-checks = true
-
-[profile.release]
-codegen-units = 1
-debug = false
-incremental = false
-lto = true
-opt-level = 2
-overflow-checks = false

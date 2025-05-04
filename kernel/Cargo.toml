@@ -23,20 +23,5 @@ rtic-monotonics = { version = "2.0.3", features = [ "cortex-m-systick" ]}
 lcd-lcm1602-i2c = "0.3.0"
 # Allocator
 embedded-alloc = "0.6.0"
-
-
-[profile.dev]
-codegen-units = 1
-debug = true
-incremental = false
-lto = true
-opt-level = 2
-overflow-checks = true
-
-[profile.release]
-codegen-units = 1
-debug = false
-incremental = false
-lto = true
-opt-level = 2
-overflow-checks = false
+# Load Tracks
+serde = {version = "1.0.219",  default-features = false }

@@ -4,6 +4,7 @@ use mseq_core::{Conductor, MidiNote, Track};
 struct MyTrack {
     channel_id: u8,
 }
+const MY_DATA: &[u8] = include_bytes!("../../res/test.bin");
 
 // Implement a track for full freedom (randomization, automatization...)
 impl Track for MyTrack {
