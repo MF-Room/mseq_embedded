@@ -493,7 +493,6 @@ dependencies = [
  "rtic",
  "rtic-monotonics",
  "rtt-target",
- "serde",
  "stm32f4xx-hal",
  "thiserror",
  "user",
