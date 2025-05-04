@@ -1,10 +1,11 @@
 use log::trace;
-use mseq_core::{Conductor, MidiNote, Track};
+use mseq_core::{Conductor, DeteTrack, MidiNote, Track};
+use postcard::from_bytes;
 
 struct MyTrack {
     channel_id: u8,
 }
-const MY_DATA: &[u8] = include_bytes!("../../res/test.bin");
+const ACID_TRACK: &[u8] = include_bytes!("../../res/test.bin");
 
 // Implement a track for full freedom (randomization, automatization...)
 impl Track for MyTrack {
@@ -34,6 +35,7 @@ impl Track for MyTrack {
 
 pub struct UserConductor {
     track: MyTrack,
+    acid: DeteTrack,
 }
 
 impl Conductor for UserConductor {
@@ -45,6 +47,7 @@ impl Conductor for UserConductor {
     fn update(&mut self, context: &mut mseq_core::Context<impl mseq_core::MidiOut>) {
         // The conductor plays the track
         context.midi.play_track(&mut self.track);
+        context.midi.play_track(&mut self.acid);
 
         // Quit after 960 steps
         if context.get_step() == 959 {
@@ -55,8 +58,11 @@ impl Conductor for UserConductor {
 
 impl UserConductor {
     pub fn new() -> Self {
-        Self {
+        let c = Self {
+            acid: from_bytes(ACID_TRACK).unwrap(),
             track: MyTrack { channel_id: 1 },
-        }
+        };
+        trace!("{:?}", c.acid);
+        c
     }
 }

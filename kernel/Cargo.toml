@@ -23,5 +23,9 @@ rtic-monotonics = { version = "2.0.3", features = [ "cortex-m-systick" ]}
 lcd-lcm1602-i2c = "0.3.0"
 # Allocator
 embedded-alloc = "0.6.0"
-# Load Tracks
-serde = {version = "1.0.219",  default-features = false }
+
+[build-dependencies]
+mseq_tracks = {path = "../../mseq/mseq_tracks"}
+mseq_core = {path = "../../mseq/mseq_core"}
+serde = "1.0.219"
+postcard ={version = "1.1.1", features = ["use-std"]}

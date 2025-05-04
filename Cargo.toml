@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
     "kernel",
     "user",
@@ -19,3 +20,4 @@ incremental = false
 lto = true
 opt-level = 2
 overflow-checks = false
+

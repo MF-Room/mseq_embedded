@@ -7,6 +7,9 @@
 //! Cargo re-run the build script whenever `memory.x` is changed,
 //! a rebuild of the application with new memory settings is ensured after updating `memory.x`.
 
+use mseq_core::Note;
+use mseq_tracks;
+use postcard::to_stdvec;
 use std::env;
 use std::fs::File;
 use std::io::Write;
@@ -27,4 +30,13 @@ fn main() {
     // here, we ensure the build script is only re-run when
     // `memory.x` is changed.
     println!("cargo:rerun-if-changed=memory.x");
+
+    //Load an acid track
+    let acid =
+        mseq_tracks::acid::load_from_file("../res/acid0.csv", Note::C, 1, "track_0").unwrap();
+    let bytes = to_stdvec(&acid).unwrap();
+    let mut bin_file = File::create("../res/test.bin").unwrap();
+    bin_file.write_all(&bytes).unwrap();
+
+    println!("cargo:rerun-if-changed=build.rs");
 }
