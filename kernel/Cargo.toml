@@ -2,7 +2,7 @@
 name = "kernel"
 version = "0.1.0"
 authors = ["Julien Eudine <julien@eudine.fr>", "Marius Debussche <marius.debussche@gmail.com>"]
-edition = "2018"
+edition = "2024"
 
 [dependencies]
 cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
