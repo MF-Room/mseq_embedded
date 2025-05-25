@@ -30,8 +30,8 @@ mod app {
         prelude::*,
         rtc::Rtc,
         serial::{
-            config::{DmaConfig, StopBits::STOP1},
             Config, Rx, Serial,
+            config::{DmaConfig, StopBits::STOP1},
         },
     };
 
@@ -45,14 +45,16 @@ mod app {
     systick_monotonic!(Mono, 100);
 
     #[shared]
-    struct Shared {}
+    struct Shared {
+        midi_controller: MidiController<MidiOut>,
+    }
 
     #[local]
     struct Local {
         lcd: screen::Lcd,
         rx: Rx<USART1>,
         rtc: Rtc,
-        mseq_ctx: mseq_core::Context<MidiOut>,
+        mseq_ctx: mseq_core::Context,
         conductor: conductor::UserConductor,
         clock_period: u32,
     }
@@ -108,10 +110,9 @@ mod app {
         // MidiOut
         let midi_out = MidiOut::new(tx);
 
-        // Think about user interface for this
         let conductor = conductor::UserConductor::new();
         let midi_controller = MidiController::new(midi_out);
-        let mseq_ctx = mseq_core::Context::new(midi_controller);
+        let mseq_ctx = mseq_core::Context::new();
 
         // Clock
         let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
@@ -122,7 +123,7 @@ mod app {
         trace!("Init over");
 
         (
-            Shared {},
+            Shared { midi_controller },
             Local {
                 lcd: screen::Lcd::new(i2c, delay),
                 rx,
@@ -141,7 +142,7 @@ mod app {
         }
     }
 
-    #[task(binds = RTC_WKUP, priority = 2, local = [rtc, mseq_ctx, conductor, clock_period])]
+    #[task(binds = RTC_WKUP, priority = 2, local = [rtc, mseq_ctx, conductor, clock_period], shared =[midi_controller])]
     fn clock(mut cx: clock::Context) {
         trace!("Clock");
 
@@ -150,8 +151,13 @@ mod app {
             .clear_interrupt(stm32f4xx_hal::rtc::Event::Wakeup);
 
         let mseq_ctx = &mut cx.local.mseq_ctx;
-        mseq_ctx.process_post_tick();
-        mseq_ctx.process_pre_tick(cx.local.conductor);
+        let conductor = cx.local.conductor;
+        cx.shared
+            .midi_controller
+            .lock(|controller| mseq_ctx.process_post_tick(controller));
+        cx.shared
+            .midi_controller
+            .lock(|controller| mseq_ctx.process_pre_tick(conductor, controller));
 
         // If clock changed, update callback timing
         if mseq_ctx.get_period_us() as u32 != *cx.local.clock_period {
