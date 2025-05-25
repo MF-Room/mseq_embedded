@@ -57,7 +57,9 @@ impl Conductor for UserConductor {
             return vec![];
         }
         // The conductor plays the track
-        self.track.play_step(step)
+        let mut notes = self.track.play_step(step);
+        notes.extend(self.acid.play_step(step));
+        notes
     }
 }
 

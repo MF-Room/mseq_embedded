@@ -8,7 +8,7 @@
 //! a rebuild of the application with new memory settings is ensured after updating `memory.x`.
 
 use mseq_core::Note;
-use mseq_tracks;
+use mseq_tracks::index::load_from_file;
 use postcard::to_stdvec;
 use std::env;
 use std::fs::File;
@@ -32,13 +32,10 @@ fn main() {
     println!("cargo:rerun-if-changed=memory.x");
 
     //Load an acid track
-    /*
-    let acid =
-        mseq_tracks::acid::load_from_file("../res/acid0.csv", Note::C, 1, "track_0").unwrap();
-    let bytes = to_stdvec(&acid).unwrap();
+    let tracks = load_from_file("../res/index.toml").unwrap();
+    let bytes = to_stdvec(&tracks[0]).unwrap();
     let mut bin_file = File::create("../res/test.bin").unwrap();
     bin_file.write_all(&bytes).unwrap();
-    */
 
     println!("cargo:rerun-if-changed=build.rs");
 }
