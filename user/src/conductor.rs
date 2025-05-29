@@ -1,5 +1,7 @@
+use alloc::vec;
+use alloc::vec::Vec;
 use log::trace;
-use mseq_core::{Conductor, DeteTrack, MidiNote, Track};
+use mseq_core::*;
 use postcard::from_bytes;
 
 struct MyTrack {
@@ -9,11 +11,7 @@ const ACID_TRACK: &[u8] = include_bytes!("../../res/test.bin");
 
 // Implement a track for full freedom (randomization, automatization...)
 impl Track for MyTrack {
-    fn play_step(
-        &mut self,
-        step: u32,
-        midi_controller: &mut mseq_core::MidiController<impl mseq_core::MidiOut>,
-    ) {
+    fn play_step(&mut self, step: u32) -> Vec<Instruction> {
         // Midi channel id to send the note to
         if step % 24 == 0 {
             trace!("Play track {}", step);
@@ -28,7 +26,14 @@ impl Track for MyTrack {
             let note_length = 12;
 
             // Request to play the note to the midi controller.
-            midi_controller.play_note(note, note_length, self.channel_id);
+            // note, note_length, self.channel_id);
+            vec![Instruction::PlayNote {
+                midi_note: note,
+                len: note_length,
+                channel_id: self.channel_id,
+            }]
+        } else {
+            vec![]
         }
     }
 }
@@ -39,20 +44,52 @@ pub struct UserConductor {
 }
 
 impl Conductor for UserConductor {
-    fn init(&mut self, context: &mut mseq_core::Context<impl mseq_core::MidiOut>) {
+    fn init(&mut self, context: &mut mseq_core::Context) {
         // The sequencer is on pause by default
         context.start();
     }
 
-    fn update(&mut self, context: &mut mseq_core::Context<impl mseq_core::MidiOut>) {
-        // The conductor plays the track
-        context.midi.play_track(&mut self.track);
-        context.midi.play_track(&mut self.acid);
+    fn update(&mut self, context: &mut mseq_core::Context) -> Vec<Instruction> {
+        let step = context.get_step();
 
         // Quit after 960 steps
-        if context.get_step() == 959 {
+        if step == 959 {
             context.quit();
+            return vec![];
         }
+
+        // The conductor plays the track
+        let mut instructions = self.track.play_step(step);
+        instructions.extend(self.acid.play_step(step));
+
+        // instructions
+        vec![]
+    }
+
+    fn handle_input(
+        &mut self,
+        channel_id: u8,
+        input: MidiMessage,
+        _context: &Context,
+    ) -> Vec<Instruction> {
+        vec![match input {
+            MidiMessage::NoteOff { note } => Instruction::MidiMessage {
+                channel_id,
+                midi_message: MidiMessage::NoteOff {
+                    note: note.transpose(3),
+                },
+            },
+            MidiMessage::NoteOn { note } => Instruction::MidiMessage {
+                channel_id,
+                midi_message: MidiMessage::NoteOn {
+                    note: note.transpose(3),
+                },
+            },
+            _ => Instruction::MidiMessage {
+                channel_id,
+                midi_message: input,
+            },
+        }]
     }
 }
 

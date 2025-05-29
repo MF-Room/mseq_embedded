@@ -1,4 +1,6 @@
-use crate::driver::{write, DriverError};
+use crate::driver::{DriverError, write};
+use log::debug;
+use mseq_core::MidiNote;
 use stm32f4xx_hal::{pac::USART1, serial::Tx};
 use thiserror::Error;
 
@@ -41,6 +43,10 @@ impl mseq_core::MidiOut for MidiOut {
         Ok(write(&mut self.tx, &[CLOCK])?)
     }
     fn send_note_on(&mut self, channel_id: u8, note: u8, velocity: u8) -> Result<(), MidiError> {
+        debug!(
+            "Channel: {channel_id}, NoteOn: {:?}",
+            MidiNote::from_midi_value(note, velocity)
+        );
         Ok(write(
             &mut self.tx,
             &[NOTE_ON | (channel_id - 1), note, velocity],

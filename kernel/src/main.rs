@@ -6,6 +6,7 @@ extern crate alloc;
 mod driver;
 mod heap;
 mod midi_connection;
+mod midi_input;
 mod rtt_logger;
 mod screen;
 
@@ -23,19 +24,20 @@ mod app {
     use alloc::vec;
     use alloc::vec::Vec;
     use log::{debug, trace};
-    use mseq_core::MidiController;
+    use mseq_core::*;
     use rtic_monotonics::systick::prelude::*;
     use stm32f4xx_hal::{
         pac::USART1,
         prelude::*,
         rtc::Rtc,
         serial::{
-            config::{DmaConfig, StopBits::STOP1},
             Config, Rx, Serial,
+            config::{DmaConfig, StopBits::STOP1},
         },
     };
 
     use crate::midi_connection::MidiOut;
+    use crate::midi_input::MidiInputHandler;
     use crate::rtt_logger;
     use crate::screen;
     use crate::{heap, rtt_logger::RttLogger};
@@ -45,21 +47,25 @@ mod app {
     systick_monotonic!(Mono, 100);
 
     #[shared]
-    struct Shared {}
+    struct Shared {
+        conductor: conductor::UserConductor,
+        input_queue: InputQueue,
+        midi_controller: MidiController<MidiOut>,
+        mseq_ctx: mseq_core::Context,
+    }
 
     #[local]
     struct Local {
         lcd: screen::Lcd,
         rx: Rx<USART1>,
         rtc: Rtc,
-        mseq_ctx: mseq_core::Context<MidiOut>,
-        conductor: conductor::UserConductor,
         clock_period: u32,
+        midi_input_handler: MidiInputHandler,
     }
 
     #[init(local = [logger: RttLogger = RttLogger {level: log::LevelFilter::Off} ])]
     fn init(mut cx: init::Context) -> (Shared, Local) {
-        rtt_logger::RttLogger::init(cx.local.logger, log::LevelFilter::Trace);
+        rtt_logger::RttLogger::init(cx.local.logger, log::LevelFilter::Debug);
 
         trace!("Init");
 
@@ -111,7 +117,7 @@ mod app {
         // Think about user interface for this
         let conductor = conductor::UserConductor::new();
         let midi_controller = MidiController::new(midi_out);
-        let mseq_ctx = mseq_core::Context::new(midi_controller);
+        let mseq_ctx = mseq_core::Context::new();
 
         // Clock
         let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
@@ -119,17 +125,24 @@ mod app {
         rtc.enable_wakeup(clock_period.micros::<1, 1_000_000>().into());
         rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
 
+        // Input Queue
+        let input_queue = InputQueue::new();
+
         trace!("Init over");
 
         (
-            Shared {},
+            Shared {
+                conductor,
+                input_queue,
+                midi_controller,
+                mseq_ctx,
+            },
             Local {
                 lcd: screen::Lcd::new(i2c, delay),
                 rx,
                 rtc,
-                mseq_ctx,
-                conductor,
                 clock_period,
+                midi_input_handler: MidiInputHandler::new(),
             },
         )
     }
@@ -141,36 +154,87 @@ mod app {
         }
     }
 
-    #[task(binds = RTC_WKUP, priority = 2, local = [rtc, mseq_ctx, conductor, clock_period])]
+    #[task(binds = RTC_WKUP, priority = 2, local = [rtc, clock_period], shared = [conductor, midi_controller, mseq_ctx])]
     fn clock(mut cx: clock::Context) {
         trace!("Clock");
 
+        // Clear clock interrupt flag
         cx.local
             .rtc
             .clear_interrupt(stm32f4xx_hal::rtc::Event::Wakeup);
 
-        let mseq_ctx = &mut cx.local.mseq_ctx;
-        mseq_ctx.process_post_tick();
-        mseq_ctx.process_pre_tick(cx.local.conductor);
+        // mseq logic
+        // post tick
+        (&mut cx.shared.mseq_ctx, &mut cx.shared.midi_controller)
+            .lock(|mseq_ctx, midi_controller| mseq_ctx.process_post_tick(midi_controller));
+
+        // pre tick
+        (
+            &mut cx.shared.mseq_ctx,
+            &mut cx.shared.midi_controller,
+            cx.shared.conductor,
+        )
+            .lock(|mseq_ctx, midi_controller, conductor| {
+                mseq_ctx.process_pre_tick(conductor, midi_controller)
+            });
 
         // If clock changed, update callback timing
-        if mseq_ctx.get_period_us() as u32 != *cx.local.clock_period {
-            *cx.local.clock_period = mseq_ctx.get_period_us() as u32;
+        cx.shared.mseq_ctx.lock(|mseq_ctx| {
+            if mseq_ctx.get_period_us() as u32 != *cx.local.clock_period {
+                *cx.local.clock_period = mseq_ctx.get_period_us() as u32;
+            }
+
             cx.local
                 .rtc
                 .enable_wakeup(cx.local.clock_period.micros::<1, 1_000_000>().into());
-        }
+        })
     }
 
     // Midi interrupt
-    #[task(binds = USART1, priority = 2, local=[rx])]
-    fn midi_int(cx: midi_int::Context) {
+    #[task(binds = USART1, priority = 3, local=[rx, midi_input_handler], shared = [input_queue])]
+    fn midi_int(mut cx: midi_int::Context) {
         let serial = cx.local.rx;
         match serial.read() {
             Ok(b) => {
-                debug!("{b} received")
-            } // defmt::info!("Received: {}", b),
-            Err(_) => {} //defmt::info!("Serial is empty"),
+                debug!("{b} received");
+                cx.local
+                    .midi_input_handler
+                    .process_byte(b)
+                    .map(|midi_message| {
+                        cx.shared
+                            .input_queue
+                            .lock(|input_queue| input_queue.push_back(midi_message))
+                    });
+            }
+            Err(_) => {}
+        }
+
+        if let Err(_) = handle_input::spawn() {
+            trace!("Handle input is already spawned");
+        }
+    }
+
+    #[task(priority = 1, shared = [mseq_ctx, conductor, midi_controller, input_queue])]
+    async fn handle_input(mut cx: handle_input::Context) {
+        let ctx = &mut cx.shared.mseq_ctx;
+        let conductor = &mut cx.shared.conductor;
+        let controller = &mut cx.shared.midi_controller;
+        let input_queue = &mut cx.shared.input_queue;
+
+        loop {
+            let mut inputs = InputQueue::new();
+
+            input_queue.lock(|input_queue| inputs = input_queue.drain(..).collect());
+
+            if inputs.is_empty() {
+                return;
+            }
+
+            (&mut *ctx, &mut *conductor, &mut *controller).lock(
+                |mseq_ctx, conductor, controller| {
+                    mseq_ctx.handle_inputs(conductor, controller, &mut inputs)
+                },
+            );
         }
     }
 }
