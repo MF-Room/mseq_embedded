@@ -114,7 +114,6 @@ mod app {
         // MidiOut
         let midi_out = MidiOut::new(tx);
 
-        // Think about user interface for this
         let conductor = conductor::UserConductor::new();
         let midi_controller = MidiController::new(midi_out);
         let mseq_ctx = mseq_core::Context::new();

@@ -26,7 +26,6 @@ impl Track for MyTrack {
             let note_length = 12;
 
             // Request to play the note to the midi controller.
-            // note, note_length, self.channel_id);
             vec![Instruction::PlayNote {
                 midi_note: note,
                 len: note_length,
