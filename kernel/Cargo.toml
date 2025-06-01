@@ -23,6 +23,7 @@ rtic-monotonics = { version = "2.0.3", features = [ "cortex-m-systick" ]}
 lcd-lcm1602-i2c = "0.3.0"
 # Allocator
 embedded-alloc = "0.6.0"
+rtic-sync = "1.3.2"
 
 [build-dependencies]
 mseq_tracks = {path = "../../mseq/mseq_tracks"}

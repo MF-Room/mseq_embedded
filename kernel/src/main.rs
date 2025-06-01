@@ -1,6 +1,5 @@
 #![no_main]
 #![no_std]
-#![feature(type_alias_impl_trait)]
 
 extern crate alloc;
 mod driver;
@@ -26,6 +25,10 @@ mod app {
     use log::{debug, trace};
     use mseq_core::*;
     use rtic_monotonics::systick::prelude::*;
+    use rtic_sync::{
+        make_signal,
+        signal::{Signal, SignalReader, SignalWriter},
+    };
     use stm32f4xx_hal::{
         pac::USART1,
         prelude::*,
@@ -61,6 +64,7 @@ mod app {
         rtc: Rtc,
         clock_period: u32,
         midi_input_handler: MidiInputHandler,
+        input_signal_writer: SignalWriter<'static, ()>,
     }
 
     #[init(local = [logger: RttLogger = RttLogger {level: log::LevelFilter::Off} ])]
@@ -127,6 +131,10 @@ mod app {
         // Input Queue
         let input_queue = InputQueue::new();
 
+        // Input Signal
+        let (w, r) = make_signal!(());
+        handle_input::spawn(r).unwrap();
+
         trace!("Init over");
 
         (
@@ -142,6 +150,7 @@ mod app {
                 rtc,
                 clock_period,
                 midi_input_handler: MidiInputHandler::new(),
+                input_signal_writer: w,
             },
         )
     }
@@ -190,7 +199,7 @@ mod app {
     }
 
     // Midi interrupt
-    #[task(binds = USART1, priority = 3, local=[rx, midi_input_handler], shared = [input_queue])]
+    #[task(binds = USART1, priority = 3, local=[rx, midi_input_handler, input_signal_writer], shared = [input_queue])]
     fn midi_int(mut cx: midi_int::Context) {
         let serial = cx.local.rx;
         match serial.read() {
@@ -208,27 +217,29 @@ mod app {
             Err(_) => {}
         }
 
+        cx.local.input_signal_writer.write(());
+        /*
         if let Err(_) = handle_input::spawn() {
             trace!("Handle input is already spawned");
         }
+        */
     }
 
     #[task(priority = 1, shared = [mseq_ctx, conductor, midi_controller, input_queue])]
-    async fn handle_input(mut cx: handle_input::Context) {
+    async fn handle_input(
+        mut cx: handle_input::Context,
+        mut input_signal_reader: SignalReader<'static, ()>,
+    ) {
         let ctx = &mut cx.shared.mseq_ctx;
         let conductor = &mut cx.shared.conductor;
         let controller = &mut cx.shared.midi_controller;
         let input_queue = &mut cx.shared.input_queue;
 
         loop {
+            input_signal_reader.wait().await;
+
             let mut inputs = InputQueue::new();
-
             input_queue.lock(|input_queue| inputs = input_queue.drain(..).collect());
-
-            if inputs.is_empty() {
-                return;
-            }
-
             (&mut *ctx, &mut *conductor, &mut *controller).lock(
                 |mseq_ctx, conductor, controller| {
                     mseq_ctx.handle_inputs(conductor, controller, &mut inputs)
