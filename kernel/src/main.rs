@@ -69,7 +69,7 @@ mod app {
 
     #[init(local = [logger: RttLogger = RttLogger {level: log::LevelFilter::Off} ])]
     fn init(mut cx: init::Context) -> (Shared, Local) {
-        rtt_logger::RttLogger::init(cx.local.logger, log::LevelFilter::Debug);
+        rtt_logger::RttLogger::init(cx.local.logger, log::LevelFilter::Trace);
 
         trace!("Init");
 
@@ -218,11 +218,6 @@ mod app {
         }
 
         cx.local.input_signal_writer.write(());
-        /*
-        if let Err(_) = handle_input::spawn() {
-            trace!("Handle input is already spawned");
-        }
-        */
     }
 
     #[task(priority = 1, shared = [mseq_ctx, conductor, midi_controller, input_queue])]

@@ -7,13 +7,13 @@
 //! Cargo re-run the build script whenever `memory.x` is changed,
 //! a rebuild of the application with new memory settings is ensured after updating `memory.x`.
 
-use mseq_core::Note;
+use mseq_core::Track;
 use mseq_tracks::index::load_from_file;
 use postcard::to_stdvec;
 use std::env;
-use std::fs::File;
+use std::fs::{File, create_dir, remove_dir_all};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     // Put `memory.x` in our output directory and ensure it's
@@ -31,11 +31,25 @@ fn main() {
     // `memory.x` is changed.
     println!("cargo:rerun-if-changed=memory.x");
 
-    //Load an acid track
-    // let tracks = load_from_file("../res/index.toml").unwrap();
-    // let bytes = to_stdvec(&tracks[0]).unwrap();
-    // let mut bin_file = File::create("../res/test.bin").unwrap();
-    // bin_file.write_all(&bytes).unwrap();
+    let tracks = load_from_file("../res/index.toml").unwrap();
+    println!("cargo:rerun-if-changed=../res/index.toml");
+
+    if !tracks.is_empty() {
+        let path = Path::new("../track_bin");
+
+        if path.exists() {
+            remove_dir_all(path).unwrap(); // Removes the directory and all its contents
+        }
+
+        create_dir(path).unwrap();
+    }
+
+    for (t, n) in tracks {
+        let bytes = to_stdvec(&t).unwrap();
+        let mut bin_file = File::create(format!("../track_bin/{}.bin", t.get_name())).unwrap();
+        bin_file.write_all(&bytes).unwrap();
+        println!("cargo:rerun-if-changed={n}");
+    }
 
     println!("cargo:rerun-if-changed=build.rs");
 }

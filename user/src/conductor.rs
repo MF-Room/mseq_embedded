@@ -7,7 +7,7 @@ use postcard::from_bytes;
 struct MyTrack {
     channel_id: u8,
 }
-const ACID_TRACK: &[u8] = include_bytes!("../../res/test.bin");
+const ACID_TRACK: &[u8] = include_bytes!("../../track_bin/acid.bin");
 
 // Implement a track for full freedom (randomization, automatization...)
 impl Track for MyTrack {
