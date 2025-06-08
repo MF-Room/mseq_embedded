@@ -2,12 +2,10 @@
 #![no_std]
 
 extern crate alloc;
-mod driver;
 mod heap;
 mod midi_connection;
 mod midi_input;
 mod rtt_logger;
-mod screen;
 
 use panic_rtt_target as _;
 
@@ -15,14 +13,12 @@ use panic_rtt_target as _;
     device = stm32f4xx_hal::pac,
     // TODO: Replace the `FreeInterrupt1, ...` with free interrupt vectors if software tasks are used
     // You can usually find the names of the interrupt vectors in the some_hal::pac::interrupt enum.
-    dispatchers = [ADC],
+    dispatchers = [ADC, DMA1_STREAM0],
     peripherals = true,
 )]
 
 mod app {
-    use alloc::vec;
-    use alloc::vec::Vec;
-    use log::{debug, trace};
+    use log::{debug, error, trace, warn};
     use mseq_core::*;
     use rtic_monotonics::systick::prelude::*;
     use rtic_sync::{
@@ -42,7 +38,6 @@ mod app {
     use crate::midi_connection::MidiOut;
     use crate::midi_input::MidiInputHandler;
     use crate::rtt_logger;
-    use crate::screen;
     use crate::{heap, rtt_logger::RttLogger};
     use user::conductor;
 
@@ -55,16 +50,17 @@ mod app {
         input_queue: InputQueue,
         midi_controller: MidiController<MidiOut>,
         mseq_ctx: mseq_core::Context,
+        display_text: driver::DisplayText,
     }
 
     #[local]
     struct Local {
-        lcd: screen::Lcd,
         rx: Rx<USART1>,
         rtc: Rtc,
         clock_period: u32,
         midi_input_handler: MidiInputHandler,
         input_signal_writer: SignalWriter<'static, ()>,
+        display: driver::Lcd,
     }
 
     #[init(local = [logger: RttLogger = RttLogger {level: log::LevelFilter::Off} ])]
@@ -108,12 +104,8 @@ mod app {
             stm32f4xx_hal::i2c::Mode::standard(50.kHz()),
             &clocks,
         );
-
         let delay = cx.device.TIM3.delay_us(&clocks);
-
-        // Test allocator
-        let mut v: Vec<u32> = vec![];
-        v.push(1);
+        let display = driver::Lcd::new(i2c, delay);
 
         // MidiOut
         let midi_out = MidiOut::new(tx);
@@ -143,14 +135,15 @@ mod app {
                 input_queue,
                 midi_controller,
                 mseq_ctx,
+                display_text: driver::DisplayText::default(),
             },
             Local {
-                lcd: screen::Lcd::new(i2c, delay),
                 rx,
                 rtc,
                 clock_period,
                 midi_input_handler: MidiInputHandler::new(),
                 input_signal_writer: w,
+                display,
             },
         )
     }
@@ -162,7 +155,7 @@ mod app {
         }
     }
 
-    #[task(binds = RTC_WKUP, priority = 2, local = [rtc, clock_period], shared = [conductor, midi_controller, mseq_ctx])]
+    #[task(binds = RTC_WKUP, priority = 3, local = [rtc, clock_period], shared = [conductor, midi_controller, mseq_ctx, display_text])]
     fn clock(mut cx: clock::Context) {
         trace!("Clock");
 
@@ -176,15 +169,34 @@ mod app {
         (&mut cx.shared.mseq_ctx, &mut cx.shared.midi_controller)
             .lock(|mseq_ctx, midi_controller| mseq_ctx.process_post_tick(midi_controller));
 
+        let mut current_step = 0;
         // pre tick
         (
             &mut cx.shared.mseq_ctx,
             &mut cx.shared.midi_controller,
-            cx.shared.conductor,
+            &mut cx.shared.conductor,
         )
             .lock(|mseq_ctx, midi_controller, conductor| {
-                mseq_ctx.process_pre_tick(conductor, midi_controller)
+                mseq_ctx.process_pre_tick(conductor, midi_controller);
+                current_step = mseq_ctx.get_step();
             });
+
+        // Screen is refreshed on each beat
+        if current_step % 24 == 1 {
+            // Update display text
+            (
+                &mut cx.shared.conductor,
+                &mut cx.shared.mseq_ctx,
+                &mut cx.shared.display_text,
+            )
+                .lock(|conductor, ctx, display_text| {
+                    *display_text = conductor.display_text(ctx);
+                });
+            match update_display::spawn() {
+                Ok(_) => (),
+                Err(_) => warn!("Display update skipped"),
+            }
+        }
 
         // If clock changed, update callback timing
         cx.shared.mseq_ctx.lock(|mseq_ctx| {
@@ -199,7 +211,7 @@ mod app {
     }
 
     // Midi interrupt
-    #[task(binds = USART1, priority = 3, local=[rx, midi_input_handler, input_signal_writer], shared = [input_queue])]
+    #[task(binds = USART1, priority = 4, local=[rx, midi_input_handler, input_signal_writer], shared = [input_queue])]
     fn midi_int(mut cx: midi_int::Context) {
         let serial = cx.local.rx;
         match serial.read() {
@@ -214,18 +226,13 @@ mod app {
                             .lock(|input_queue| input_queue.push_back(midi_message))
                     });
             }
-            Err(_) => {}
+            Err(_) => error!("Serial error"),
         }
 
         cx.local.input_signal_writer.write(());
-        /*
-        if let Err(_) = handle_input::spawn() {
-            trace!("Handle input is already spawned");
-        }
-        */
     }
 
-    #[task(priority = 1, shared = [mseq_ctx, conductor, midi_controller, input_queue])]
+    #[task(priority = 2, shared = [mseq_ctx, conductor, midi_controller, input_queue])]
     async fn handle_input(
         mut cx: handle_input::Context,
         mut input_signal_reader: SignalReader<'static, ()>,
@@ -239,12 +246,19 @@ mod app {
             input_signal_reader.wait().await;
 
             let mut inputs = InputQueue::new();
-            input_queue.lock(|input_queue| inputs = input_queue.drain(..).collect());
+            input_queue.lock(|input_queue| inputs = core::mem::take(input_queue));
             (&mut *ctx, &mut *conductor, &mut *controller).lock(
                 |mseq_ctx, conductor, controller| {
                     mseq_ctx.handle_inputs(conductor, controller, &mut inputs)
                 },
             );
         }
+    }
+
+    #[task(priority = 1, local = [display], shared = [display_text])]
+    async fn update_display(mut cx: update_display::Context) {
+        cx.shared
+            .display_text
+            .lock(|display_text| cx.local.display.update(display_text));
     }
 }

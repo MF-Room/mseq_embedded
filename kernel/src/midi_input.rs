@@ -1,4 +1,3 @@
-use log::debug;
 use mseq_core::{MidiMessage, MidiNote};
 
 pub struct MidiInputHandler {

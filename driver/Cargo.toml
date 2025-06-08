@@ -1,0 +1,13 @@
+[package]
+name = "driver"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+stm32f4xx-hal = { version = "0.22.1", features = ["stm32f411"] }
+embedded-hal-nb = "1.0.0"
+thiserror = {version = "2.0.12", default-features=false}
+# LCD screen
+lcd-lcm1602-i2c = "0.3.0"
+heapless = "0.8.0"
+log = { version = "0.4.27", default-features = false }

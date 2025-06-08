@@ -1,5 +1,5 @@
-use alloc::vec;
 use alloc::vec::Vec;
+use alloc::{format, vec};
 use log::trace;
 use mseq_core::*;
 use postcard::from_bytes;
@@ -100,5 +100,19 @@ impl UserConductor {
         };
         trace!("{:?}", c.acid);
         c
+    }
+
+    pub fn display_text(&self, context: &Context) -> driver::DisplayText {
+        let line0 = heapless::String::try_from(" -- Mseq -- ").unwrap();
+        let line1 =
+            heapless::String::try_from(format!("Bpm: {}", context.get_bpm()).as_str()).unwrap();
+        let line2 =
+            heapless::String::try_from(format!("Step: {}", context.get_step() / 24).as_str())
+                .unwrap();
+        let line3 = heapless::String::try_from("Machines play").unwrap();
+
+        driver::DisplayText {
+            lines: [line0, line1, line2, line3],
+        }
     }
 }

@@ -248,6 +248,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "driver"
+version = "0.1.0"
+dependencies = [
+ "embedded-hal-nb",
+ "heapless 0.8.0",
+ "lcd-lcm1602-i2c",
+ "log",
+ "stm32f4xx-hal",
+ "thiserror",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -513,9 +525,9 @@ name = "kernel"
 version = "0.1.0"
 dependencies = [
  "cortex-m",
+ "driver",
  "embedded-alloc",
  "embedded-hal-nb",
- "lcd-lcm1602-i2c",
  "log",
  "mseq_core",
  "mseq_tracks",
@@ -1194,6 +1206,8 @@ checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
 name = "user"
 version = "0.1.0"
 dependencies = [
+ "driver",
+ "heapless 0.8.0",
  "log",
  "mseq_core",
  "postcard",

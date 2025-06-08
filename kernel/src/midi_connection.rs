@@ -1,4 +1,4 @@
-use crate::driver::{DriverError, write};
+use driver::{DriverError, write};
 use log::debug;
 use mseq_core::MidiNote;
 use stm32f4xx_hal::{pac::USART1, serial::Tx};
