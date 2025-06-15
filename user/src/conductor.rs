@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use alloc::{format, vec};
-use log::trace;
+use log::{debug, trace};
 use mseq_core::*;
 use postcard::from_bytes;
 
@@ -62,7 +62,7 @@ impl Conductor for UserConductor {
         instructions.extend(self.acid.play_step(step));
 
         // instructions
-        vec![]
+        instructions
     }
 
     fn handle_input(

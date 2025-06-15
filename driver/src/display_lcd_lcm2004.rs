@@ -1,3 +1,4 @@
+use log::{debug, error, info};
 use stm32f4xx_hal::{
     pac::{I2C1, TIM3},
     timer::DelayUs,
@@ -17,16 +18,24 @@ pub struct Lcd {
 }
 
 impl Lcd {
-    pub fn new(i2c: stm32f4xx_hal::i2c::I2c<I2C1>, delay: DelayUs<TIM3>) -> Self {
+    pub fn new(i2c: stm32f4xx_hal::i2c::I2c<I2C1>, delay: DelayUs<TIM3>) -> Option<Self> {
         let mut result = Self {
             i2c,
             delay,
             current_display: DisplayText::default(),
         };
-        let mut lcd = result.init();
-        lcd.clear().unwrap();
-        lcd.return_home().unwrap();
-        result
+        match result.init() {
+            Some(mut lcd) => {
+                info!("Screen detected");
+                lcd.clear().unwrap();
+                lcd.return_home().unwrap()
+            }
+            None => {
+                error!("Screen initialization failed");
+                return None;
+            }
+        }
+        Some(result)
     }
 
     fn update_cursor_pos(
@@ -87,16 +96,18 @@ impl Lcd {
 
     fn init(
         &mut self,
-    ) -> lcd_lcm1602_i2c::sync_lcd::Lcd<
-        '_,
-        stm32f4xx_hal::i2c::I2c<I2C1>,
-        stm32f4xx_hal::timer::Delay<stm32f4xx_hal::pac::TIM3, 1000000>,
+    ) -> Option<
+        lcd_lcm1602_i2c::sync_lcd::Lcd<
+            '_,
+            stm32f4xx_hal::i2c::I2c<I2C1>,
+            stm32f4xx_hal::timer::Delay<stm32f4xx_hal::pac::TIM3, 1000000>,
+        >,
     > {
         lcd_lcm1602_i2c::sync_lcd::Lcd::new(&mut self.i2c, &mut self.delay)
             .with_address(LCD_ADDRESS)
             .with_rows(2)
             .with_cursor_on(false)
             .init()
-            .unwrap()
+            .ok()
     }
 }

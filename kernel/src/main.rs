@@ -13,13 +13,15 @@ use panic_rtt_target as _;
     device = stm32f4xx_hal::pac,
     // TODO: Replace the `FreeInterrupt1, ...` with free interrupt vectors if software tasks are used
     // You can usually find the names of the interrupt vectors in the some_hal::pac::interrupt enum.
-    dispatchers = [ADC, DMA1_STREAM0],
+    dispatchers = [ADC, DMA1_STREAM0, DMA2_STREAM5],
     peripherals = true,
 )]
 
 mod app {
-    use log::{debug, error, trace, warn};
+    use log::{debug, error, info, trace, warn};
     use mseq_core::*;
+    use rtic::mutex_prelude::TupleExt02;
+    use rtic::mutex_prelude::TupleExt03;
     use rtic_monotonics::systick::prelude::*;
     use rtic_sync::{
         make_signal,
@@ -35,6 +37,7 @@ mod app {
         },
     };
 
+    use crate::app::shared_resources::*;
     use crate::midi_connection::MidiOut;
     use crate::midi_input::MidiInputHandler;
     use crate::rtt_logger;
@@ -60,13 +63,13 @@ mod app {
         clock_period: u32,
         midi_input_handler: MidiInputHandler,
         input_signal_writer: SignalWriter<'static, ()>,
-        display: driver::Lcd,
+        display: Option<driver::Lcd>,
+        is_master: bool,
     }
 
     #[init(local = [logger: RttLogger = RttLogger {level: log::LevelFilter::Off} ])]
     fn init(mut cx: init::Context) -> (Shared, Local) {
-        rtt_logger::RttLogger::init(cx.local.logger, log::LevelFilter::Debug);
-
+        rtt_logger::RttLogger::init(cx.local.logger, log::LevelFilter::Trace);
         trace!("Init");
 
         // Initilialize allocator
@@ -78,6 +81,13 @@ mod app {
         let gpioa = cx.device.GPIOA.split();
         let rx_1 = gpioa.pa10.into_alternate();
         let tx_1 = gpioa.pa9.into_alternate();
+        let pa1 = gpioa.pa1.into_floating_input();
+        let is_master = pa1.is_high();
+        if pa1.is_high() {
+            info!("Master mode");
+        } else {
+            info!("Slave mode");
+        }
 
         let serial: Serial<USART1> = Serial::new(
             cx.device.USART1,
@@ -91,10 +101,8 @@ mod app {
             &clocks,
         )
         .expect("Failed to initialize serial");
-        let (mut tx, mut rx) = serial.split();
+        let (tx, mut rx) = serial.split();
         rx.listen();
-
-        tx.write(0xfa).unwrap();
 
         // lcd screen
         let gpiob = cx.device.GPIOB.split();
@@ -117,8 +125,10 @@ mod app {
         // Clock
         let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
         let clock_period = mseq_ctx.get_period_us() as u32;
-        rtc.enable_wakeup(clock_period.micros::<1, 1_000_000>().into());
-        rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
+        if is_master {
+            rtc.enable_wakeup(clock_period.micros::<1, 1_000_000>().into());
+            rtc.listen(&mut cx.device.EXTI, stm32f4xx_hal::rtc::Event::Wakeup);
+        }
 
         // Input Queue
         let input_queue = InputQueue::new();
@@ -144,6 +154,7 @@ mod app {
                 midi_input_handler: MidiInputHandler::new(),
                 input_signal_writer: w,
                 display,
+                is_master,
             },
         )
     }
@@ -156,47 +167,18 @@ mod app {
     }
 
     #[task(binds = RTC_WKUP, priority = 3, local = [rtc, clock_period], shared = [conductor, midi_controller, mseq_ctx, display_text])]
-    fn clock(mut cx: clock::Context) {
-        trace!("Clock");
-
+    fn master_clock(mut cx: master_clock::Context) {
         // Clear clock interrupt flag
         cx.local
             .rtc
             .clear_interrupt(stm32f4xx_hal::rtc::Event::Wakeup);
 
-        // mseq logic
-        // post tick
-        (&mut cx.shared.mseq_ctx, &mut cx.shared.midi_controller)
-            .lock(|mseq_ctx, midi_controller| mseq_ctx.process_post_tick(midi_controller));
-
-        let mut current_step = 0;
-        // pre tick
-        (
+        clock(
             &mut cx.shared.mseq_ctx,
             &mut cx.shared.midi_controller,
             &mut cx.shared.conductor,
-        )
-            .lock(|mseq_ctx, midi_controller, conductor| {
-                mseq_ctx.process_pre_tick(conductor, midi_controller);
-                current_step = mseq_ctx.get_step();
-            });
-
-        // Screen is refreshed on each beat
-        if current_step % 24 == 1 {
-            // Update display text
-            (
-                &mut cx.shared.conductor,
-                &mut cx.shared.mseq_ctx,
-                &mut cx.shared.display_text,
-            )
-                .lock(|conductor, ctx, display_text| {
-                    *display_text = conductor.display_text(ctx);
-                });
-            match update_display::spawn() {
-                Ok(_) => (),
-                Err(_) => warn!("Display update skipped"),
-            }
-        }
+            &mut cx.shared.display_text,
+        );
 
         // If clock changed, update callback timing
         cx.shared.mseq_ctx.lock(|mseq_ctx| {
@@ -210,8 +192,55 @@ mod app {
         })
     }
 
+    fn clock(
+        mut mseq_ctx: &mut mseq_ctx_that_needs_to_be_locked,
+        mut midi_controller: &mut midi_controller_that_needs_to_be_locked,
+        mut conductor: &mut conductor_that_needs_to_be_locked,
+        mut display_text: &mut display_text_that_needs_to_be_locked,
+    ) {
+        trace!("Clock");
+
+        // mseq logic
+        // post tick
+        (&mut mseq_ctx, &mut midi_controller)
+            .lock(|mseq_ctx, midi_controller| mseq_ctx.process_post_tick(midi_controller));
+
+        let mut current_step = 0;
+        // pre tick
+        (&mut mseq_ctx, &mut midi_controller, &mut conductor).lock(
+            |mseq_ctx, midi_controller, conductor| {
+                mseq_ctx.process_pre_tick(conductor, midi_controller);
+                current_step = mseq_ctx.get_step();
+            },
+        );
+
+        // Screen is refreshed on each beat
+        if current_step % 24 == 1 {
+            // Update display text
+            (&mut conductor, &mut mseq_ctx, &mut display_text).lock(
+                |conductor, ctx, display_text| {
+                    *display_text = conductor.display_text(ctx);
+                },
+            );
+            match update_display::spawn() {
+                Ok(_) => (),
+                Err(_) => warn!("Display update skipped"),
+            }
+        }
+    }
+
+    #[task(priority = 3, shared = [conductor, midi_controller, mseq_ctx, display_text])]
+    async fn slave_clock(mut cx: slave_clock::Context) {
+        clock(
+            &mut cx.shared.mseq_ctx,
+            &mut cx.shared.midi_controller,
+            &mut cx.shared.conductor,
+            &mut cx.shared.display_text,
+        );
+    }
+
     // Midi interrupt
-    #[task(binds = USART1, priority = 4, local=[rx, midi_input_handler, input_signal_writer], shared = [input_queue])]
+    #[task(binds = USART1, priority = 4, local=[rx, midi_input_handler, input_signal_writer, is_master], shared = [input_queue])]
     fn midi_int(mut cx: midi_int::Context) {
         let serial = cx.local.rx;
         match serial.read() {
@@ -221,15 +250,24 @@ mod app {
                     .midi_input_handler
                     .process_byte(b)
                     .map(|midi_message| {
-                        cx.shared
-                            .input_queue
-                            .lock(|input_queue| input_queue.push_back(midi_message))
+                        if midi_message.1 == MidiMessage::Clock {
+                            if !*cx.local.is_master {
+                                if let Err(()) = slave_clock::spawn() {
+                                    error!("Clock cycle skipped")
+                                }
+                            } else {
+                                warn!("Received clock signal but mode is set to master")
+                            }
+                        } else {
+                            cx.shared
+                                .input_queue
+                                .lock(|input_queue| input_queue.push_back(midi_message));
+                            cx.local.input_signal_writer.write(());
+                        }
                     });
             }
             Err(_) => error!("Serial error"),
         }
-
-        cx.local.input_signal_writer.write(());
     }
 
     #[task(priority = 2, shared = [mseq_ctx, conductor, midi_controller, input_queue])]
@@ -257,8 +295,10 @@ mod app {
 
     #[task(priority = 1, local = [display], shared = [display_text])]
     async fn update_display(mut cx: update_display::Context) {
-        cx.shared
-            .display_text
-            .lock(|display_text| cx.local.display.update(display_text));
+        cx.local.display.as_mut().map(|display| {
+            cx.shared
+                .display_text
+                .lock(|display_text| display.update(display_text))
+        });
     }
 }
