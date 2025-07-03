@@ -250,7 +250,7 @@ mod app {
                     .midi_input_handler
                     .process_byte(b)
                     .map(|midi_message| {
-                        if midi_message.1 == MidiMessage::Clock {
+                        if midi_message == MidiMessage::Clock {
                             if !*cx.local.is_master {
                                 if let Err(()) = slave_clock::spawn() {
                                     error!("Clock cycle skipped")

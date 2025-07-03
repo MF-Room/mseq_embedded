@@ -67,28 +67,28 @@ impl Conductor for UserConductor {
 
     fn handle_input(
         &mut self,
-        channel_id: u8,
-        input: MidiMessage,
+        input: mseq_core::MidiMessage,
         _context: &Context,
     ) -> Vec<Instruction> {
-        vec![match input {
-            MidiMessage::NoteOff { note } => Instruction::MidiMessage {
-                channel_id,
-                midi_message: MidiMessage::NoteOff {
-                    note: note.transpose(3),
-                },
-            },
-            MidiMessage::NoteOn { note } => Instruction::MidiMessage {
-                channel_id,
-                midi_message: MidiMessage::NoteOn {
-                    note: note.transpose(3),
-                },
-            },
-            _ => Instruction::MidiMessage {
-                channel_id,
-                midi_message: input,
-            },
-        }]
+        match input {
+            mseq_core::MidiMessage::NoteOff { channel, note } => {
+                vec![Instruction::MidiMessage {
+                    midi_message: MidiMessage::NoteOff {
+                        channel,
+                        note: note.transpose(3),
+                    },
+                }]
+            }
+            mseq_core::MidiMessage::NoteOn { channel, note } => {
+                vec![Instruction::MidiMessage {
+                    midi_message: MidiMessage::NoteOn {
+                        channel,
+                        note: note.transpose(3),
+                    },
+                }]
+            }
+            _ => vec![],
+        }
     }
 }
 

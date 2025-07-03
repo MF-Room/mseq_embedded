@@ -1,5 +1,7 @@
 use mseq_core::{MidiMessage, MidiNote};
 
+use crate::midi_connection::{CC, CLOCK, NOTE_OFF, NOTE_ON, PC};
+
 pub struct MidiInputHandler {
     size: u8,
     data: [u8; 3],
@@ -19,10 +21,10 @@ impl MidiInputHandler {
     fn clear(&mut self) {
         self.size = 0;
     }
-    pub fn process_byte(&mut self, byte: u8) -> Option<(u8, MidiMessage)> {
+    pub fn process_byte(&mut self, byte: u8) -> Option<MidiMessage> {
         // Handle real-time messages (e.g., Clock) immediately
-        if byte == 0xF8 {
-            return Some((0, MidiMessage::Clock));
+        if byte == CLOCK {
+            return Some(MidiMessage::Clock);
         }
 
         // Append the byte to the buffer
@@ -43,28 +45,44 @@ impl MidiInputHandler {
         let message_type = status & 0xF0;
         let channel = (status & 0x0F) + 1;
 
-        // If we have a status byte and 2 data bytes, process the message
-        if self.size < 3 {
+        // If we have a single status byte
+        if self.size == 1 {
             return None;
         }
 
+        // If we have a 2 bytes
+        if self.size == 2 {
+            if message_type == PC {
+                return Some(MidiMessage::PC {
+                    channel,
+                    value: self.data[1],
+                });
+            } else {
+                return None;
+            }
+        }
+
         let msg = match message_type {
-            0x80 => {
+            NOTE_OFF => {
                 let key = self.data[1];
                 let vel = self.data[2];
                 let note = MidiNote::from_midi_value(key, vel);
-                Some((channel, MidiMessage::NoteOff { note }))
+                Some(MidiMessage::NoteOff { channel, note })
             }
-            0x90 => {
+            NOTE_ON => {
                 let key = self.data[1];
                 let vel = self.data[2];
                 let note = MidiNote::from_midi_value(key, vel);
-                Some((channel, MidiMessage::NoteOn { note }))
+                Some(MidiMessage::NoteOn { channel, note })
             }
-            0xB0 => {
+            CC => {
                 let controller = self.data[1];
                 let value = self.data[2];
-                Some((channel, MidiMessage::CC { controller, value }))
+                Some(MidiMessage::CC {
+                    channel,
+                    controller,
+                    value,
+                })
             }
             _ => None,
         };

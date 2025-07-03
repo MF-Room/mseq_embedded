@@ -20,13 +20,14 @@ impl MidiOut {
     }
 }
 
-const CLOCK: u8 = 0xf8;
-const START: u8 = 0xfa;
-const CONTINUE: u8 = 0xfb;
-const STOP: u8 = 0xfc;
-const NOTE_ON: u8 = 0x90;
-const NOTE_OFF: u8 = 0x80;
-const CC: u8 = 0xB0;
+pub const CLOCK: u8 = 0xf8;
+pub const START: u8 = 0xfa;
+pub const CONTINUE: u8 = 0xfb;
+pub const STOP: u8 = 0xfc;
+pub const NOTE_ON: u8 = 0x90;
+pub const NOTE_OFF: u8 = 0x80;
+pub const CC: u8 = 0xB0;
+pub const PC: u8 = 0xC0;
 
 impl mseq_core::MidiOut for MidiOut {
     type Error = MidiError;
@@ -63,5 +64,8 @@ impl mseq_core::MidiOut for MidiOut {
             &mut self.tx,
             &[CC | (channel_id - 1), parameter, value],
         )?)
+    }
+    fn send_pc(&mut self, channel_id: u8, value: u8) -> Result<(), MidiError> {
+        Ok(write(&mut self.tx, &[PC | (channel_id - 1), value])?)
     }
 }
