@@ -1,6 +1,6 @@
 use mseq_core::{MidiMessage, MidiNote};
 
-use crate::midi_connection::{CC, CLOCK, NOTE_OFF, NOTE_ON, PC};
+use crate::midi_connection::{CC, CLOCK, CONTINUE, NOTE_OFF, NOTE_ON, PC, START, STOP};
 
 pub struct MidiInputHandler {
     size: u8,
@@ -22,22 +22,26 @@ impl MidiInputHandler {
         self.size = 0;
     }
     pub fn process_byte(&mut self, byte: u8) -> Option<MidiMessage> {
-        // Handle real-time messages (e.g., Clock) immediately
-        if byte == CLOCK {
-            return Some(MidiMessage::Clock);
+        // Handle real-time messages immediately
+        match byte {
+            CLOCK => return Some(MidiMessage::Clock),
+            START => return Some(MidiMessage::Start),
+            STOP => return Some(MidiMessage::Stop),
+            CONTINUE => return Some(MidiMessage::Continue),
+            _ => {}
         }
-
         // Append the byte to the buffer
         self.push(byte);
 
-        // Must start with a status byte
-        if self.data.len() == 1 && self.data[0] & 0x80 == 0 {
+        // Must start with a known status byte
+        if self.data.len() == 1 && ![CC, PC, NOTE_ON, NOTE_OFF].contains(&self.data[0]) {
             // First byte is not a status byte; discard
             self.clear();
             return None;
         }
 
-        if self.data.is_empty() {
+        // If we have a single status byte
+        if self.size == 1 {
             return None;
         }
 
@@ -45,18 +49,13 @@ impl MidiInputHandler {
         let message_type = status & 0xF0;
         let channel = (status & 0x0F) + 1;
 
-        // If we have a single status byte
-        if self.size == 1 {
-            return None;
-        }
-
-        // If we have a 2 bytes
+        // If we have 2 bytes
         if self.size == 2 {
             if message_type == PC {
-                return Some(MidiMessage::PC {
-                    channel,
-                    value: self.data[1],
-                });
+                let value = self.data[1];
+                // Reset buffer
+                self.clear();
+                return Some(MidiMessage::PC { channel, value });
             } else {
                 return None;
             }

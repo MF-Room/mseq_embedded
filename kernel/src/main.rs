@@ -19,6 +19,7 @@ use panic_rtt_target as _;
 
 mod app {
     use log::{debug, error, info, trace, warn};
+    use mseq_core::MidiMessage;
     use mseq_core::*;
     use rtic::mutex_prelude::TupleExt02;
     use rtic::mutex_prelude::TupleExt03;
@@ -239,6 +240,21 @@ mod app {
         );
     }
 
+    #[task(priority = 3, shared = [mseq_ctx])]
+    async fn slave_start(mut cx: slave_start::Context) {
+        cx.shared.mseq_ctx.lock(|ctx| ctx.start());
+    }
+
+    #[task(priority = 3, shared = [mseq_ctx])]
+    async fn slave_stop(mut cx: slave_stop::Context) {
+        cx.shared.mseq_ctx.lock(|ctx| ctx.pause());
+    }
+
+    #[task(priority = 3, shared = [mseq_ctx])]
+    async fn slave_continue(mut cx: slave_continue::Context) {
+        cx.shared.mseq_ctx.lock(|ctx| ctx.resume());
+    }
+
     // Midi interrupt
     #[task(binds = USART1, priority = 4, local=[rx, midi_input_handler, input_signal_writer, is_master], shared = [input_queue])]
     fn midi_int(mut cx: midi_int::Context) {
@@ -250,20 +266,50 @@ mod app {
                     .midi_input_handler
                     .process_byte(b)
                     .map(|midi_message| {
-                        if midi_message == MidiMessage::Clock {
-                            if !*cx.local.is_master {
-                                if let Err(()) = slave_clock::spawn() {
-                                    error!("Clock cycle skipped")
+                        match midi_message {
+                            MidiMessage::Clock => {
+                                if !*cx.local.is_master {
+                                    if let Err(()) = slave_clock::spawn() {
+                                        error!("Clock cycle skipped")
+                                    }
+                                } else {
+                                    warn!("Received clock signal but mode is set to master")
                                 }
-                            } else {
-                                warn!("Received clock signal but mode is set to master")
                             }
-                        } else {
-                            cx.shared
-                                .input_queue
-                                .lock(|input_queue| input_queue.push_back(midi_message));
-                            cx.local.input_signal_writer.write(());
-                        }
+                            MidiMessage::Start => {
+                                if !*cx.local.is_master {
+                                    if let Err(()) = slave_start::spawn() {
+                                        error!("Failed to start sequencer")
+                                    }
+                                } else {
+                                    warn!("Received start signal but mode is set to master")
+                                }
+                            }
+                            MidiMessage::Stop => {
+                                if !*cx.local.is_master {
+                                    if let Err(()) = slave_stop::spawn() {
+                                        error!("Failed to stop sequencer")
+                                    }
+                                } else {
+                                    warn!("Received stop signal but mode is set to master")
+                                }
+                            }
+                            MidiMessage::Continue => {
+                                if !*cx.local.is_master {
+                                    if let Err(()) = slave_continue::spawn() {
+                                        error!("Failed to continue sequencer")
+                                    }
+                                } else {
+                                    warn!("Received continue signal but mode is set to master")
+                                }
+                            }
+                            _ => {
+                                cx.shared
+                                    .input_queue
+                                    .lock(|input_queue| input_queue.push_back(midi_message));
+                                cx.local.input_signal_writer.write(());
+                            }
+                        };
                     });
             }
             Err(_) => error!("Serial error"),
