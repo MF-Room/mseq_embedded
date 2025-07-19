@@ -121,7 +121,7 @@ mod app {
 
         let conductor = conductor::UserConductor::new();
         let midi_controller = MidiController::new(midi_out);
-        let mseq_ctx = mseq_core::Context::new();
+        let mseq_ctx = mseq_core::Context::default();
 
         // Clock
         let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
