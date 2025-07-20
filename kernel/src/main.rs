@@ -333,7 +333,7 @@ mod app {
             input_queue.lock(|input_queue| inputs = core::mem::take(input_queue));
             (&mut *ctx, &mut *conductor, &mut *controller).lock(
                 |mseq_ctx, conductor, controller| {
-                    mseq_ctx.handle_inputs(conductor, controller, &mut inputs)
+                    mseq_ctx.handle_input(conductor, controller, &mut inputs)
                 },
             );
         }
