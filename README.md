@@ -15,6 +15,13 @@ Midi UART:
 * RX: A10
 * TX: A9
 
+Switch Slave/Master:
+* A1 (high: master)
+
+Display:
+* SCL: B6
+* SDA: B7
+
 ### Flash only
 
 ```bash
