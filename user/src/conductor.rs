@@ -43,9 +43,10 @@ pub struct UserConductor {
 }
 
 impl Conductor for UserConductor {
-    fn init(&mut self, context: &mut mseq_core::Context) {
+    fn init(&mut self, context: &mut mseq_core::Context) -> Vec<Instruction> {
         // The sequencer is on pause by default
         context.start();
+        vec![]
     }
 
     fn update(&mut self, context: &mut mseq_core::Context) -> Vec<Instruction> {

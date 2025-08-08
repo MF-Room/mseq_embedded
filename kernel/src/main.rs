@@ -106,6 +106,7 @@ mod app {
         rx.listen();
 
         // lcd screen
+        /*
         let gpiob = cx.device.GPIOB.split();
         let i2c = stm32f4xx_hal::i2c::I2c::new(
             cx.device.I2C1,
@@ -115,13 +116,15 @@ mod app {
         );
         let delay = cx.device.TIM3.delay_us(&clocks);
         let display = driver::Lcd::new(i2c, delay);
+        */
+        let display = None;
 
         // MidiOut
         let midi_out = MidiOut::new(tx);
 
-        let conductor = conductor::UserConductor::new();
-        let midi_controller = MidiController::new(midi_out);
-        let mseq_ctx = mseq_core::Context::default();
+        let mut conductor = conductor::UserConductor::new();
+        let mut midi_controller = MidiController::new(midi_out);
+        let mut mseq_ctx = mseq_core::Context::default();
 
         // Clock
         let mut rtc = Rtc::new(cx.device.RTC, &mut cx.device.PWR);
@@ -137,6 +140,9 @@ mod app {
         // Input Signal
         let (w, r) = make_signal!(());
         handle_input::spawn(r).unwrap();
+
+        // Conductor Init
+        // mseq_ctx.init(&mut conductor, &mut midi_controller);
 
         trace!("Init over");
 
