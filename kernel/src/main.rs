@@ -122,7 +122,7 @@ mod app {
         // MidiOut
         let midi_out = MidiOut::new(tx);
 
-        let mut conductor = conductor::UserConductor::new();
+        let mut conductor = conductor::UserConductor::default();
         let mut midi_controller = MidiController::new(midi_out);
         let mut mseq_ctx = mseq_core::Context::default();
 
@@ -347,10 +347,10 @@ mod app {
 
     #[task(priority = 1, local = [display], shared = [display_text])]
     async fn update_display(mut cx: update_display::Context) {
-        cx.local.display.as_mut().map(|display| {
+        if let Some(display) = cx.local.display.as_mut() {
             cx.shared
                 .display_text
                 .lock(|display_text| display.update(display_text))
-        });
+        }
     }
 }

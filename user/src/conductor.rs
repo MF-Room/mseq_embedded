@@ -93,8 +93,8 @@ impl Conductor for UserConductor {
     }
 }
 
-impl UserConductor {
-    pub fn new() -> Self {
+impl Default for UserConductor {
+    fn default() -> Self {
         let c = Self {
             acid: from_bytes(ACID_TRACK).unwrap(),
             track: MyTrack { channel_id: 1 },
@@ -102,7 +102,9 @@ impl UserConductor {
         //trace!("{:?}", c.acid);
         c
     }
+}
 
+impl UserConductor {
     pub fn display_text(&self, context: &Context) -> driver::DisplayText {
         let line0 = heapless::String::try_from(" -- Mseq -- ").unwrap();
         let line1 =

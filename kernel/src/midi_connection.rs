@@ -32,20 +32,24 @@ pub const PC: u8 = 0xC0;
 impl mseq_core::MidiOut for MidiOut {
     type Error = MidiError;
     fn send_start(&mut self) -> Result<(), MidiError> {
+        debug!("Send Start");
         Ok(write(&mut self.tx, &[START])?)
     }
     fn send_continue(&mut self) -> Result<(), MidiError> {
+        debug!("Send Continue");
         Ok(write(&mut self.tx, &[CONTINUE])?)
     }
     fn send_stop(&mut self) -> Result<(), MidiError> {
+        debug!("Send Stop");
         Ok(write(&mut self.tx, &[STOP])?)
     }
     fn send_clock(&mut self) -> Result<(), MidiError> {
+        debug!("Send Clock");
         Ok(write(&mut self.tx, &[CLOCK])?)
     }
     fn send_note_on(&mut self, channel_id: u8, note: u8, velocity: u8) -> Result<(), MidiError> {
         debug!(
-            "Channel: {channel_id}, NoteOn: {:?}",
+            "Send Note On: Channel: {channel_id}, Note: {:?}",
             MidiNote::from_midi_value(note, velocity)
         );
         Ok(write(
@@ -54,18 +58,24 @@ impl mseq_core::MidiOut for MidiOut {
         )?)
     }
     fn send_note_off(&mut self, channel_id: u8, note: u8) -> Result<(), MidiError> {
+        debug!(
+            "Send Note Off: Channel: {channel_id}, Note: {:?}",
+            MidiNote::from_midi_value(note, 0)
+        );
         Ok(write(
             &mut self.tx,
             &[NOTE_OFF | (channel_id - 1), note, 0],
         )?)
     }
     fn send_cc(&mut self, channel_id: u8, parameter: u8, value: u8) -> Result<(), MidiError> {
+        debug!("Send CC: Channel: {channel_id}, paramerte: {parameter}, value: {value}");
         Ok(write(
             &mut self.tx,
             &[CC | (channel_id - 1), parameter, value],
         )?)
     }
     fn send_pc(&mut self, channel_id: u8, value: u8) -> Result<(), MidiError> {
+        debug!("Send PC: Channel: {channel_id}, value: {value}");
         Ok(write(&mut self.tx, &[PC | (channel_id - 1), value])?)
     }
 }
