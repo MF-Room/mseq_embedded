@@ -142,7 +142,7 @@ mod app {
         handle_input::spawn(r).unwrap();
 
         // Conductor Init
-        // mseq_ctx.init(&mut conductor, &mut midi_controller);
+        mseq_ctx.init(&mut conductor, &mut midi_controller);
 
         trace!("Init over");
 

@@ -45,8 +45,8 @@ pub struct UserConductor {
 impl Conductor for UserConductor {
     fn init(&mut self, context: &mut mseq_core::Context) -> Vec<Instruction> {
         // The sequencer is on pause by default
-        context.start();
-        vec![]
+        trace!("Initializing conductor");
+        vec![context.start()]
     }
 
     fn update(&mut self, context: &mut mseq_core::Context) -> Vec<Instruction> {
@@ -99,7 +99,7 @@ impl UserConductor {
             acid: from_bytes(ACID_TRACK).unwrap(),
             track: MyTrack { channel_id: 1 },
         };
-        trace!("{:?}", c.acid);
+        //trace!("{:?}", c.acid);
         c
     }
 
