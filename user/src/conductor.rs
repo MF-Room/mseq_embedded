@@ -46,7 +46,8 @@ impl Conductor for UserConductor {
     fn init(&mut self, context: &mut mseq_core::Context) -> Vec<Instruction> {
         // The sequencer is on pause by default
         trace!("Initializing conductor");
-        vec![context.start()]
+        context.start();
+        vec![]
     }
 
     fn update(&mut self, context: &mut mseq_core::Context) -> Vec<Instruction> {
