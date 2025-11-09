@@ -11,9 +11,9 @@
 
 ## Usage
 
-Midi UART:
-* RX: A10
-* TX: A9
+MIDI UART:
+* RX: B3
+* TX: A15
 
 Switch Slave/Master:
 * A1 (high: master)
@@ -21,6 +21,10 @@ Switch Slave/Master:
 Display:
 * SCL: B6
 * SDA: B7
+
+Bootloader UART:
+* RX: A10
+* TX: A9
 
 ### Flash only
 

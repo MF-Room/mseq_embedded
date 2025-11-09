@@ -76,12 +76,15 @@ mod app {
         // Initilialize allocator
         heap::allocator_init();
 
+        // GPIO
+        let gpioa = cx.device.GPIOA.split();
+        let gpiob = cx.device.GPIOB.split();
+
         // Serial connection
         let rcc = cx.device.RCC.constrain();
         let clocks = rcc.cfgr.use_hse(25.MHz()).freeze();
-        let gpioa = cx.device.GPIOA.split();
-        let rx_1 = gpioa.pa10.into_alternate();
-        let tx_1 = gpioa.pa9.into_alternate();
+        let rx_1 = gpiob.pb3.into_alternate();
+        let tx_1 = gpioa.pa15.into_alternate();
         let pa1 = gpioa.pa1.into_floating_input();
         let is_master = pa1.is_high();
         if pa1.is_high() {
@@ -106,7 +109,6 @@ mod app {
         rx.listen();
 
         // lcd screen
-        let gpiob = cx.device.GPIOB.split();
         let i2c = stm32f4xx_hal::i2c::I2c::new(
             cx.device.I2C1,
             (gpiob.pb6, gpiob.pb7),
