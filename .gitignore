@@ -1,3 +1,4 @@
 target/
 Cargo.lock
 track_bin/
+mseq.bin
