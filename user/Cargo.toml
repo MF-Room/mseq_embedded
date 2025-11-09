@@ -6,7 +6,7 @@ edition = "2024"
 
 [dependencies]
 log = { version = "0.4.27", default-features = false }
-mseq_core = {path = "../../mseq/mseq_core", default-features = false}
+mseq_core = {version ="0.1" , default-features = false}
 postcard = {version = "1.1.1", default-features = false }
 heapless = "0.8.0"
 

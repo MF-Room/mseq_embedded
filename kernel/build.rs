@@ -48,7 +48,7 @@ fn main() {
         let bytes = to_stdvec(&t).unwrap();
         let mut bin_file = File::create(format!("../track_bin/{}.bin", t.get_name())).unwrap();
         bin_file.write_all(&bytes).unwrap();
-        println!("cargo:rerun-if-changed={n}");
+        println!("cargo:rerun-if-changed={}", n.display());
     }
 
     println!("cargo:rerun-if-changed=build.rs");
